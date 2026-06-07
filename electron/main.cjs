@@ -1,0 +1,261 @@
+const { app, BrowserWindow, clipboard, ipcMain } = require('electron');
+const { GlobalKeyboardListener } = require('node-global-key-listener');
+const path = require('path');
+const fs = require('fs');
+
+const isDev = !app.isPackaged;
+const openRouterUrl = 'https://openrouter.ai/api/v1/chat/completions';
+const defaultModel = 'deepseek/deepseek-v4-flash';
+let mainWindow;
+let lastCopyAt = 0;
+let keyListener;
+let settings = {
+  shortcutEnabled: true,
+  shortcutModifier: 'CTRL',
+  shortcutKey: 'C',
+  shortcutWindowMs: 650,
+  apiKey: '',
+  model: defaultModel,
+  appLanguage: 'zh',
+  autoLaunch: false,
+};
+
+function loadEnv() {
+  if (!isDev) return;
+
+  const envPath = path.join(__dirname, '..', '.env');
+  if (!fs.existsSync(envPath)) return;
+
+  const lines = fs.readFileSync(envPath, 'utf8').split(/\r?\n/);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const index = trimmed.indexOf('=');
+    if (index === -1) continue;
+    const key = trimmed.slice(0, index).trim();
+    const value = trimmed.slice(index + 1).trim();
+    if (key && !process.env[key]) {
+      process.env[key] = value;
+    }
+  }
+}
+
+function getSettingsPath() {
+  return path.join(app.getPath('userData'), 'settings.json');
+}
+
+function normalizeSettings(nextSettings = {}) {
+  return {
+    shortcutEnabled: Boolean(nextSettings.shortcutEnabled ?? true),
+    shortcutModifier: String(nextSettings.shortcutModifier || 'CTRL').toUpperCase(),
+    shortcutKey: String(nextSettings.shortcutKey || 'C').toUpperCase(),
+    shortcutWindowMs: Number(nextSettings.shortcutWindowMs || 650),
+    apiKey: String(nextSettings.apiKey ?? ''),
+    model: String(nextSettings.model || process.env.OPENROUTER_MODEL || defaultModel),
+    appLanguage: ['zh', 'en'].includes(nextSettings.appLanguage) ? nextSettings.appLanguage : 'zh',
+    autoLaunch: Boolean(nextSettings.autoLaunch ?? false),
+  };
+}
+
+function applyAutoLaunch() {
+  if (!app.isPackaged) return;
+
+  app.setLoginItemSettings({
+    openAtLogin: settings.autoLaunch,
+    path: process.execPath,
+  });
+}
+
+function loadSettings() {
+  const settingsPath = getSettingsPath();
+  if (!fs.existsSync(settingsPath)) {
+    settings = normalizeSettings(settings);
+    return settings;
+  }
+
+  try {
+    const raw = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+    settings = normalizeSettings(raw);
+  } catch {
+    settings = normalizeSettings(settings);
+  }
+  applyAutoLaunch();
+  return settings;
+}
+
+function saveSettings(nextSettings) {
+  settings = normalizeSettings({ ...settings, ...nextSettings });
+  fs.mkdirSync(path.dirname(getSettingsPath()), { recursive: true });
+  fs.writeFileSync(getSettingsPath(), JSON.stringify(settings, null, 2), 'utf8');
+  applyAutoLaunch();
+  lastCopyAt = 0;
+  return settings;
+}
+
+function createWindow() {
+  mainWindow = new BrowserWindow({
+    width: 1040,
+    height: 680,
+    minWidth: 860,
+    minHeight: 560,
+    title: 'OpenDeepL',
+    backgroundColor: '#ffffff',
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.cjs'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+
+  mainWindow.once('ready-to-show', () => mainWindow.show());
+
+  if (isDev) {
+    mainWindow.loadURL('http://127.0.0.1:5173');
+  } else {
+    mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
+  }
+}
+
+async function translateText({ text, sourceLanguage = 'auto', targetLanguage = 'English (US)' }) {
+  const apiKey = settings.apiKey || process.env.OPENROUTER_API_KEY;
+  const model = settings.model || process.env.OPENROUTER_MODEL || defaultModel;
+
+  if (!apiKey) {
+    throw new Error('Missing OpenRouter API key. Please open Settings and configure it.');
+  }
+
+  const trimmed = String(text || '').trim();
+  if (!trimmed) {
+    return '';
+  }
+
+  const prompt = [
+    'You are a professional translation engine.',
+    'Return only the translated text. Do not explain, label, summarize, or add markdown.',
+    `Source language: ${sourceLanguage}`,
+    `Target language: ${targetLanguage}`,
+    'Keep formatting, paragraph breaks, numbers, and punctuation as faithfully as possible.',
+  ].join('\n');
+
+  const response = await fetch(openRouterUrl, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': 'https://local.opendeepl.app',
+      'X-Title': 'OpenDeepL',
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: 'system', content: prompt },
+        { role: 'user', content: trimmed },
+      ],
+      temperature: 0.2,
+    }),
+  });
+
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(`OpenRouter request failed: ${response.status} ${detail.slice(0, 240)}`);
+  }
+
+  const data = await response.json();
+  const content = data?.choices?.[0]?.message?.content;
+  if (!content) {
+    throw new Error('OpenRouter did not return translated content.');
+  }
+
+  return String(content).trim();
+}
+
+function focusWindow() {
+  if (!mainWindow) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+}
+
+async function translateClipboard() {
+  const text = clipboard.readText().trim();
+  if (!text) {
+    focusWindow();
+    mainWindow?.webContents.send('shortcut-empty');
+    return;
+  }
+
+  focusWindow();
+  mainWindow?.webContents.send('shortcut-translate', { text });
+}
+
+function registerShortcut() {
+  keyListener = new GlobalKeyboardListener({
+    windows: {
+      onError: (errorCode) => {
+        mainWindow?.webContents.send('app-error', `Global shortcut listener error: ${errorCode}`);
+      },
+    },
+  });
+
+  keyListener.addListener((event, down) => {
+    const modifierDown = isModifierDown(down, settings.shortcutModifier);
+    const keyMatches = event.name === settings.shortcutKey;
+    if (!settings.shortcutEnabled || event.state !== 'DOWN' || !keyMatches || !modifierDown) return;
+
+    const now = Date.now();
+    if (now - lastCopyAt <= settings.shortcutWindowMs) {
+      lastCopyAt = 0;
+      setTimeout(() => {
+        translateClipboard().catch((error) => {
+          mainWindow?.webContents.send('app-error', error.message);
+        });
+      }, 140);
+      return;
+    }
+
+    lastCopyAt = now;
+  }).catch((error) => {
+    mainWindow?.webContents.send('app-error', `Global shortcut listener failed to start: ${error.message}`);
+  });
+}
+
+function isModifierDown(down, modifier) {
+  if (modifier === 'ALT') return Boolean(down['LEFT ALT'] || down['RIGHT ALT']);
+  if (modifier === 'SHIFT') return Boolean(down['LEFT SHIFT'] || down['RIGHT SHIFT']);
+  if (modifier === 'META') return Boolean(down['LEFT META'] || down['RIGHT META']);
+  return Boolean(down['LEFT CTRL'] || down['RIGHT CTRL']);
+}
+
+function unregisterShortcut() {
+  if (keyListener) {
+    keyListener.kill();
+    keyListener = undefined;
+  }
+}
+
+app.whenReady().then(() => {
+  loadEnv();
+  loadSettings();
+  applyAutoLaunch();
+  createWindow();
+  registerShortcut();
+
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  });
+});
+
+app.on('will-quit', () => {
+  unregisterShortcut();
+});
+
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') app.quit();
+});
+
+ipcMain.handle('translate', (_event, payload) => translateText(payload));
+ipcMain.handle('read-clipboard', () => clipboard.readText());
+ipcMain.handle('write-clipboard', (_event, text) => clipboard.writeText(String(text || '')));
+ipcMain.handle('get-settings', () => settings);
+ipcMain.handle('save-settings', (_event, payload) => saveSettings(payload));

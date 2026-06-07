@@ -1,0 +1,12 @@
+node_modules
+dist
+release
+.env
+.env.*
+!.env.example
+*.log
+*.7z
+*.exe
+*.asar
+*.asar.unpacked
+*.tmp
