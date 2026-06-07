@@ -1,4 +1,4 @@
-const { app, BrowserWindow, clipboard, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, Tray, clipboard, dialog, ipcMain, nativeImage } = require('electron');
 const { GlobalKeyboardListener } = require('node-global-key-listener');
 const path = require('path');
 const fs = require('fs');
@@ -7,6 +7,8 @@ const isDev = !app.isPackaged;
 const openRouterUrl = 'https://openrouter.ai/api/v1/chat/completions';
 const defaultModel = 'deepseek/deepseek-v4-flash';
 let mainWindow;
+let tray;
+let isQuitting = false;
 let lastCopyAt = 0;
 let keyListener;
 let settings = {
@@ -109,12 +111,93 @@ function createWindow() {
   });
 
   mainWindow.once('ready-to-show', () => mainWindow.show());
+  mainWindow.on('close', handleWindowClose);
 
   if (isDev) {
     mainWindow.loadURL('http://127.0.0.1:5173');
   } else {
     mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
   }
+}
+
+function createTray() {
+  if (tray) return;
+
+  tray = new Tray(createTrayIcon());
+  tray.setToolTip('OpenDeepL');
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      {
+        label: 'Show OpenDeepL',
+        click: focusWindow,
+      },
+      {
+        type: 'separator',
+      },
+      {
+        label: 'Quit',
+        click: quitApp,
+      },
+    ]),
+  );
+  tray.on('click', focusWindow);
+}
+
+function createTrayIcon() {
+  const size = 16;
+  const scale = 4;
+  const canvasSize = size * scale;
+  const buffer = Buffer.alloc(canvasSize * canvasSize * 4);
+
+  for (let y = 0; y < canvasSize; y += 1) {
+    for (let x = 0; x < canvasSize; x += 1) {
+      const index = (y * canvasSize + x) * 4;
+      const dx = x - canvasSize / 2;
+      const dy = y - canvasSize / 2;
+      const inside = dx * dx + dy * dy <= (canvasSize / 2 - 2) ** 2;
+      if (inside) {
+        buffer[index] = 0;
+        buffer[index + 1] = 111;
+        buffer[index + 2] = 201;
+        buffer[index + 3] = 255;
+      }
+    }
+  }
+
+  const image = nativeImage.createFromBitmap(buffer, { width: canvasSize, height: canvasSize });
+  return image.resize({ width: size, height: size });
+}
+
+function handleWindowClose(event) {
+  if (isQuitting) return;
+
+  event.preventDefault();
+  const zh = settings.appLanguage === 'zh';
+  const result = dialog.showMessageBoxSync(mainWindow, {
+    type: 'question',
+    buttons: zh ? ['隐藏到托盘', '退出应用', '取消'] : ['Hide to tray', 'Quit app', 'Cancel'],
+    defaultId: 0,
+    cancelId: 2,
+    title: 'OpenDeepL',
+    message: zh ? '关闭窗口时要怎么处理 OpenDeepL？' : 'What should OpenDeepL do when you close the window?',
+    detail: zh
+      ? '隐藏到托盘后，快捷键翻译仍会工作，并会在触发时重新显示窗口。'
+      : 'When hidden to tray, shortcut translation keeps working and will show the window when triggered.',
+  });
+
+  if (result === 0) {
+    mainWindow.hide();
+    return;
+  }
+
+  if (result === 1) {
+    quitApp();
+  }
+}
+
+function quitApp() {
+  isQuitting = true;
+  app.quit();
 }
 
 async function translateText({ text, sourceLanguage = 'auto', targetLanguage = 'English (US)' }) {
@@ -171,7 +254,10 @@ async function translateText({ text, sourceLanguage = 'auto', targetLanguage = '
 }
 
 function focusWindow() {
-  if (!mainWindow) return;
+  if (!mainWindow) {
+    createWindow();
+    return;
+  }
   if (mainWindow.isMinimized()) mainWindow.restore();
   mainWindow.show();
   mainWindow.focus();
@@ -239,6 +325,7 @@ app.whenReady().then(() => {
   loadSettings();
   applyAutoLaunch();
   createWindow();
+  createTray();
   registerShortcut();
 
   app.on('activate', () => {
@@ -247,11 +334,12 @@ app.whenReady().then(() => {
 });
 
 app.on('will-quit', () => {
+  isQuitting = true;
   unregisterShortcut();
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
+  if (isQuitting && process.platform !== 'darwin') app.quit();
 });
 
 ipcMain.handle('translate', (_event, payload) => translateText(payload));
