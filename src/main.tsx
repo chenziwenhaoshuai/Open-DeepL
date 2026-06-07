@@ -24,6 +24,14 @@ type HistoryItem = {
   targetLanguage: string;
 };
 
+type SentenceSegment = {
+  id: string;
+  text: string;
+  paragraphIndex: number;
+  sentenceIndex: number;
+  paragraphSentenceCount: number;
+};
+
 type SettingsDraft = AppSettings;
 type AppLanguage = AppSettings['appLanguage'];
 
@@ -183,12 +191,13 @@ function formatShortcut(settings: Pick<AppSettings, 'shortcutModifier' | 'shortc
   return `${settings.shortcutModifier}+${settings.shortcutKey}+${settings.shortcutKey}`;
 }
 
-function splitSentences(text: string) {
+function splitSentences(text: string): SentenceSegment[] {
   const normalized = text.replace(/\r\n/g, '\n');
-  const segments: string[] = [];
+  const segments: Array<Omit<SentenceSegment, 'id' | 'sentenceIndex' | 'paragraphSentenceCount'>> = [];
   const boundaryMarks = new Set(['.', '!', '?', '\u3002', '\uff01', '\uff1f', '\uff1b', ';', '\n']);
   let start = 0;
   let index = 0;
+  let paragraphIndex = 0;
 
   while (index < normalized.length) {
     if (!boundaryMarks.has(normalized[index])) {
@@ -203,17 +212,67 @@ function splitSentences(text: string) {
 
     const segment = normalized.slice(start, index);
     if (segment.trim()) {
-      segments.push(segment);
+      segments.push({ text: segment, paragraphIndex });
     }
+    paragraphIndex += countParagraphBreaks(segment);
     start = index;
   }
 
   const rest = normalized.slice(start);
   if (rest.trim()) {
-    segments.push(rest);
+    segments.push({ text: rest, paragraphIndex });
   }
 
-  return segments.length ? segments : normalized.trim() ? [normalized] : [];
+  if (!segments.length && normalized.trim()) {
+    segments.push({ text: normalized, paragraphIndex: 0 });
+  }
+
+  const paragraphCounts = new Map<number, number>();
+  for (const segment of segments) {
+    paragraphCounts.set(segment.paragraphIndex, (paragraphCounts.get(segment.paragraphIndex) || 0) + 1);
+  }
+
+  const paragraphSeen = new Map<number, number>();
+  return segments.map((segment, index) => {
+    const sentenceIndex = paragraphSeen.get(segment.paragraphIndex) || 0;
+    paragraphSeen.set(segment.paragraphIndex, sentenceIndex + 1);
+
+    return {
+      ...segment,
+      id: `${index}-${segment.paragraphIndex}-${segment.text.slice(0, 12)}`,
+      sentenceIndex,
+      paragraphSentenceCount: paragraphCounts.get(segment.paragraphIndex) || 1,
+    };
+  });
+}
+
+function countParagraphBreaks(text: string) {
+  return text.match(/\n\s*\n/g)?.length || 0;
+}
+
+function mapOutputSentenceToSource(
+  outputIndex: number | null,
+  outputSegments: SentenceSegment[],
+  sourceSegments: SentenceSegment[],
+) {
+  if (outputIndex === null) return null;
+
+  const outputSegment = outputSegments[outputIndex];
+  if (!outputSegment) return null;
+
+  const sourceParagraph = sourceSegments.filter((segment) => segment.paragraphIndex === outputSegment.paragraphIndex);
+  if (!sourceParagraph.length) {
+    return Math.min(outputIndex, sourceSegments.length - 1);
+  }
+
+  const ratio =
+    outputSegment.paragraphSentenceCount <= 1
+      ? 0
+      : outputSegment.sentenceIndex / Math.max(1, outputSegment.paragraphSentenceCount - 1);
+  const sourceParagraphIndex = Math.round(ratio * Math.max(0, sourceParagraph.length - 1));
+  const sourceSegment = sourceParagraph[sourceParagraphIndex];
+
+  return sourceSegments.findIndex((segment) => segment.id === sourceSegment.id);
 }
 
 function App() {
@@ -233,7 +292,7 @@ function App() {
   const [modelsError, setModelsError] = useState('');
   const [freeModelsOnly, setFreeModelsOnly] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [hoveredSentence, setHoveredSentence] = useState<number | null>(null);
+  const [hoveredOutputSentence, setHoveredOutputSentence] = useState<number | null>(null);
   const [sourceScrollTop, setSourceScrollTop] = useState(0);
   const activeRequestIdRef = useRef('');
   const streamTextRef = useRef('');
@@ -249,6 +308,10 @@ function App() {
   const alignmentEnabled = settings.sentenceHighlightEnabled && Boolean(output.trim());
   const sourceSegments = useMemo(() => splitSentences(input), [input]);
   const outputSegments = useMemo(() => splitSentences(output), [output]);
+  const hoveredSourceSentence = useMemo(
+    () => mapOutputSentenceToSource(hoveredOutputSentence, outputSegments, sourceSegments),
+    [hoveredOutputSentence, outputSegments, sourceSegments],
+  );
 
   const runTranslate = useCallback(
     async (text = input) => {
@@ -262,7 +325,7 @@ function App() {
 
       setInput(text);
       setOutput('');
-      setHoveredSentence(null);
+      setHoveredOutputSentence(null);
       setLoading(true);
       const requestId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
       activeRequestIdRef.current = requestId;
@@ -359,7 +422,7 @@ function App() {
     const text = await window.openDeepL.readClipboard();
     setInput(text);
     setOutput('');
-    setHoveredSentence(null);
+    setHoveredOutputSentence(null);
   }
 
   async function copyOutput() {
@@ -385,7 +448,7 @@ function App() {
   function editSourceText(nextInput: string) {
     setInput(nextInput);
     setOutput('');
-    setHoveredSentence(null);
+    setHoveredOutputSentence(null);
   }
 
   async function fetchModels() {
@@ -474,7 +537,7 @@ function App() {
               <SentenceView
                 text={input}
                 segments={sourceSegments}
-                activeIndex={hoveredSentence}
+                activeIndex={hoveredSourceSentence}
                 className="sourceSentenceView sourceSentenceOverlay"
                 scrollActiveIntoView
                 scrollTop={sourceScrollTop}
@@ -509,7 +572,7 @@ function App() {
               onClick={() => {
                 setInput('');
                 setOutput('');
-                setHoveredSentence(null);
+                setHoveredOutputSentence(null);
               }}
               disabled={!input}
             >
@@ -532,9 +595,9 @@ function App() {
               <SentenceView
                 text={output}
                 segments={outputSegments}
-                activeIndex={hoveredSentence}
+                activeIndex={hoveredOutputSentence}
                 className="outputSentenceView"
-                onHover={setHoveredSentence}
+                onHover={setHoveredOutputSentence}
               />
             ) : (
               <div className="result">{output}</div>
@@ -580,7 +643,7 @@ function App() {
                       onClick={() => {
                         setInput(item.source);
                         setOutput(item.result);
-                        setHoveredSentence(null);
+                        setHoveredOutputSentence(null);
                         setHistoryOpen(false);
                       }}
                     >
@@ -702,7 +765,7 @@ function SentenceView({
   onScrollPositionChange,
 }: {
   text: string;
-  segments: string[];
+  segments: SentenceSegment[];
   activeIndex: number | null;
   className?: string;
   onHover?: (index: number | null) => void;
@@ -752,7 +815,7 @@ function SentenceView({
       onMouseLeave={() => onHover?.(null)}
     >
       {segments.map((segment, index) => (
-        <React.Fragment key={`${index}-${segment.slice(0, 12)}`}>
+        <React.Fragment key={segment.id}>
           <span
             ref={(element) => {
               segmentRefs.current[index] = element;
@@ -760,7 +823,7 @@ function SentenceView({
             className={activeIndex === index ? 'sentenceSegment hovered' : 'sentenceSegment'}
             onMouseEnter={() => onHover?.(index)}
           >
-            {segment}
+            {segment.text}
           </span>
         </React.Fragment>
       ))}
@@ -794,6 +857,11 @@ function SettingsDialog({
   onFreeModelsOnlyChange: (enabled: boolean) => void;
 }) {
   const visibleModels = freeModelsOnly ? models.filter((model) => model.isFree) : models;
+  const formRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    formRef.current?.scrollTo({ top: 0, left: 0 });
+  }, []);
 
   return (
     <div className="modalBackdrop">
@@ -805,7 +873,7 @@ function SettingsDialog({
           </button>
         </header>
 
-        <div className="formGrid">
+        <div className="formGrid" ref={formRef}>
           <label className="wide">
             {t.appLanguage}
             <select

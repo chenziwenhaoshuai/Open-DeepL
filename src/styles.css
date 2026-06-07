@@ -412,6 +412,7 @@ kbd {
 .modalBackdrop {
   position: fixed;
   inset: 0;
+  z-index: 40;
   display: grid;
   place-items: center;
   background: rgba(15, 23, 42, 0.28);
@@ -533,8 +534,9 @@ kbd {
 
 .formGrid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: 13px;
   padding: 18px;
   overflow: auto;
 }
@@ -542,6 +544,7 @@ kbd {
 .formGrid label {
   display: grid;
   gap: 7px;
+  min-width: 0;
   color: #344054;
   font-size: 13px;
   font-weight: 700;
@@ -550,6 +553,7 @@ kbd {
 .formGrid input,
 .formGrid select {
   width: 100%;
+  min-width: 0;
   height: 36px;
   border: 1px solid #d8e0e8;
   border-radius: 6px;
@@ -567,17 +571,22 @@ kbd {
   display: flex !important;
   align-items: center;
   gap: 9px !important;
+  min-height: 28px;
 }
 
 .checkRow input {
+  flex: 0 0 auto;
   width: 16px;
   height: 16px;
+  padding: 0;
 }
 
 .modelTools {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 14px;
+  min-width: 0;
 }
 
 .inlineCheck {
