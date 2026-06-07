@@ -38,6 +38,7 @@ type AppSettings = {
   model: string;
   appLanguage: 'zh' | 'en';
   autoLaunch: boolean;
+  sentenceHighlightEnabled: boolean;
 };
 
 interface Window {

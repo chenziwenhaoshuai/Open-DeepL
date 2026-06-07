@@ -67,6 +67,7 @@ const i18n = {
     english: 'English',
     enableShortcut: '\u542f\u7528\u5feb\u6377\u952e\u7ffb\u8bd1',
     autoLaunch: '\u5f00\u673a\u81ea\u542f',
+    sentenceHighlight: '\u542f\u7528\u53e5\u5b50\u5bf9\u5e94\u9ad8\u4eae',
     modifier: '\u4fee\u9970\u952e',
     repeatKey: '\u8fde\u6309\u6309\u952e',
     doublePressInterval: '\u53cc\u51fb\u95f4\u9694 ms',
@@ -112,6 +113,7 @@ const i18n = {
     english: 'English',
     enableShortcut: 'Enable shortcut translation',
     autoLaunch: 'Launch at startup',
+    sentenceHighlight: 'Highlight aligned sentences',
     modifier: 'Modifier',
     repeatKey: 'Repeat key',
     doublePressInterval: 'Double-press interval ms',
@@ -141,10 +143,27 @@ const fallbackSettings: SettingsDraft = {
   model: 'deepseek/deepseek-v4-flash',
   appLanguage: 'zh',
   autoLaunch: false,
+  sentenceHighlightEnabled: false,
 };
 
 function formatShortcut(settings: Pick<AppSettings, 'shortcutModifier' | 'shortcutKey'>) {
   return `${settings.shortcutModifier}+${settings.shortcutKey}+${settings.shortcutKey}`;
+}
+
+function splitSentences(text: string) {
+  const normalized = text.replace(/\r\n/g, '\n');
+  const segments: string[] = [];
+  const pattern = /[^.!?。！？；;\n]+[.!?。！？；;]*|\n+/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(normalized))) {
+    const segment = match[0];
+    if (segment.trim()) {
+      segments.push(segment);
+    }
+  }
+
+  return segments.length ? segments : normalized.trim() ? [normalized] : [];
 }
 
 function App() {
@@ -163,6 +182,7 @@ function App() {
   const [modelsError, setModelsError] = useState('');
   const [freeModelsOnly, setFreeModelsOnly] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [hoveredSentence, setHoveredSentence] = useState<number | null>(null);
   const activeRequestIdRef = useRef('');
   const streamTextRef = useRef('');
   const streamSourceRef = useRef('');
@@ -173,6 +193,9 @@ function App() {
     () => (sourceLanguage === 'auto' ? t.detectSource : sourceLanguage),
     [sourceLanguage, t.detectSource],
   );
+  const alignmentEnabled = settings.sentenceHighlightEnabled && Boolean(output.trim());
+  const sourceSegments = useMemo(() => splitSentences(input), [input]);
+  const outputSegments = useMemo(() => splitSentences(output), [output]);
 
   const runTranslate = useCallback(
     async (text = input) => {
@@ -186,6 +209,7 @@ function App() {
 
       setInput(text);
       setOutput('');
+      setHoveredSentence(null);
       setLoading(true);
       const requestId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
       activeRequestIdRef.current = requestId;
@@ -363,18 +387,27 @@ function App() {
 
       <main className="workspace">
         <section className="pane inputPane">
-          <textarea
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault();
-                runTranslate(input);
-              }
-            }}
-            placeholder={t.inputPlaceholder}
-            spellCheck={false}
-          />
+          {alignmentEnabled ? (
+            <SentenceView
+              text={input}
+              segments={sourceSegments}
+              activeIndex={hoveredSentence}
+              className="sourceSentenceView"
+            />
+          ) : (
+            <textarea
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && !event.shiftKey) {
+                  event.preventDefault();
+                  runTranslate(input);
+                }
+              }}
+              placeholder={t.inputPlaceholder}
+              spellCheck={false}
+            />
+          )}
           {!input && (
             <div className="emptyState">
               <p>
@@ -392,7 +425,15 @@ function App() {
               <Clipboard size={17} />
               {t.paste}
             </button>
-            <button className="secondary" onClick={() => setInput('')} disabled={!input}>
+            <button
+              className="secondary"
+              onClick={() => {
+                setInput('');
+                setOutput('');
+                setHoveredSentence(null);
+              }}
+              disabled={!input}
+            >
               {t.clear}
             </button>
             <button className="primaryFooterButton" onClick={() => runTranslate(input)} disabled={!input.trim() || loading}>
@@ -402,13 +443,23 @@ function App() {
         </section>
 
         <section className="pane outputPane">
-          {loading ? (
+          {loading && !output ? (
             <div className="status">
               <Sparkles size={24} />
               {t.translating}
             </div>
           ) : output ? (
-            <div className="result">{output}</div>
+            alignmentEnabled ? (
+              <SentenceView
+                text={output}
+                segments={outputSegments}
+                activeIndex={hoveredSentence}
+                className="outputSentenceView"
+                onHover={setHoveredSentence}
+              />
+            ) : (
+              <div className="result">{output}</div>
+            )
           ) : (
             <div className="status">{t.resultPlaceholder}</div>
           )}
@@ -450,6 +501,7 @@ function App() {
                       onClick={() => {
                         setInput(item.source);
                         setOutput(item.result);
+                        setHoveredSentence(null);
                         setHistoryOpen(false);
                       }}
                     >
@@ -500,6 +552,40 @@ function App() {
           onFreeModelsOnlyChange={setFreeModelsOnly}
         />
       )}
+    </div>
+  );
+}
+
+function SentenceView({
+  text,
+  segments,
+  activeIndex,
+  className,
+  onHover,
+}: {
+  text: string;
+  segments: string[];
+  activeIndex: number | null;
+  className?: string;
+  onHover?: (index: number | null) => void;
+}) {
+  if (!segments.length) {
+    return <div className={`sentenceView ${className || ''}`}>{text}</div>;
+  }
+
+  return (
+    <div className={`sentenceView ${className || ''}`} onMouseLeave={() => onHover?.(null)}>
+      {segments.map((segment, index) => (
+        <React.Fragment key={`${index}-${segment.slice(0, 12)}`}>
+          <span
+            className={activeIndex === index ? 'sentenceSegment hovered' : 'sentenceSegment'}
+            onMouseEnter={() => onHover?.(index)}
+          >
+            {segment}
+          </span>
+          {index < segments.length - 1 ? ' ' : ''}
+        </React.Fragment>
+      ))}
     </div>
   );
 }
@@ -560,6 +646,15 @@ function SettingsDialog({
               onChange={(event) => onChange({ ...settings, autoLaunch: event.target.checked })}
             />
             {t.autoLaunch}
+          </label>
+
+          <label className="checkRow">
+            <input
+              type="checkbox"
+              checked={settings.sentenceHighlightEnabled}
+              onChange={(event) => onChange({ ...settings, sentenceHighlightEnabled: event.target.checked })}
+            />
+            {t.sentenceHighlight}
           </label>
 
           <label className="checkRow">
