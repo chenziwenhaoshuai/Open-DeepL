@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('openDeepL', {
   writeClipboard: (text) => ipcRenderer.invoke('write-clipboard', text),
   getSettings: () => ipcRenderer.invoke('get-settings'),
   saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
+  getOpenRouterModels: () => ipcRenderer.invoke('get-openrouter-models'),
   onShortcutTranslate: (callback) => {
     const listener = (_event, payload) => callback(payload);
     ipcRenderer.on('shortcut-translate', listener);

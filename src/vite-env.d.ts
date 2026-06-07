@@ -12,9 +12,17 @@ type OpenDeepLBridge = {
   writeClipboard: (text: string) => Promise<void>;
   getSettings: () => Promise<AppSettings>;
   saveSettings: (settings: Partial<AppSettings>) => Promise<AppSettings>;
+  getOpenRouterModels: () => Promise<OpenRouterModel[]>;
   onShortcutTranslate: (callback: (payload: { text: string }) => void) => () => void;
   onShortcutEmpty: (callback: () => void) => () => void;
   onAppError: (callback: (message: string) => void) => () => void;
+};
+
+type OpenRouterModel = {
+  id: string;
+  name: string;
+  contextLength: number;
+  isFree: boolean;
 };
 
 type AppSettings = {

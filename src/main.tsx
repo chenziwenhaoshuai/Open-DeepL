@@ -70,6 +70,12 @@ const i18n = {
     repeatKey: '\u8fde\u6309\u6309\u952e',
     doublePressInterval: '\u53cc\u51fb\u95f4\u9694 ms',
     modelName: '\u6a21\u578b\u540d',
+    fetchModels: '\u83b7\u53d6\u6a21\u578b\u5217\u8868',
+    loadingModels: '\u6b63\u5728\u83b7\u53d6...',
+    freeModelsOnly: '\u4ec5\u663e\u793a Free \u6a21\u578b',
+    modelListPlaceholder: '\u5148\u83b7\u53d6\u6a21\u578b\u5217\u8868',
+    modelsLoaded: '\u5df2\u83b7\u53d6\u6a21\u578b\u5217\u8868\u3002',
+    modelsLoadFailed: '\u83b7\u53d6\u6a21\u578b\u5217\u8868\u5931\u8d25\u3002',
     cancel: '\u53d6\u6d88',
     save: '\u4fdd\u5b58',
     translateFailed: '\u7ffb\u8bd1\u5931\u8d25\u3002',
@@ -107,6 +113,12 @@ const i18n = {
     repeatKey: 'Repeat key',
     doublePressInterval: 'Double-press interval ms',
     modelName: 'Model name',
+    fetchModels: 'Fetch models',
+    loadingModels: 'Loading...',
+    freeModelsOnly: 'Free models only',
+    modelListPlaceholder: 'Fetch models first',
+    modelsLoaded: 'Model list loaded.',
+    modelsLoadFailed: 'Failed to load model list.',
     cancel: 'Cancel',
     save: 'Save',
     translateFailed: 'Translation failed.',
@@ -142,6 +154,10 @@ function App() {
   const [settings, setSettings] = useState<SettingsDraft>(fallbackSettings);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [models, setModels] = useState<OpenRouterModel[]>([]);
+  const [modelsLoading, setModelsLoading] = useState(false);
+  const [modelsError, setModelsError] = useState('');
+  const [freeModelsOnly, setFreeModelsOnly] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const t = i18n[settings.appLanguage];
@@ -246,7 +262,23 @@ function App() {
       shortcutWindowMs: Math.max(250, Math.min(1500, Number(nextSettings.shortcutWindowMs) || 650)),
     });
     setSettings(saved);
+    if (saved.apiKey.trim()) {
+      setError('');
+    }
     setSettingsOpen(false);
+  }
+
+  async function fetchModels() {
+    setModelsLoading(true);
+    setModelsError('');
+    try {
+      const nextModels = await window.openDeepL.getOpenRouterModels();
+      setModels(nextModels);
+    } catch (modelsLoadError) {
+      setModelsError(modelsLoadError instanceof Error ? modelsLoadError.message : t.modelsLoadFailed);
+    } finally {
+      setModelsLoading(false);
+    }
   }
 
   function swapLanguages() {
@@ -394,10 +426,16 @@ function App() {
       {settingsOpen && (
         <SettingsDialog
           settings={settings}
+          models={models}
+          modelsLoading={modelsLoading}
+          modelsError={modelsError}
+          freeModelsOnly={freeModelsOnly}
           t={t}
           onClose={() => setSettingsOpen(false)}
           onSave={saveSettings}
           onChange={setSettings}
+          onFetchModels={fetchModels}
+          onFreeModelsOnlyChange={setFreeModelsOnly}
         />
       )}
     </div>
@@ -406,17 +444,31 @@ function App() {
 
 function SettingsDialog({
   settings,
+  models,
+  modelsLoading,
+  modelsError,
+  freeModelsOnly,
   t,
   onClose,
   onSave,
   onChange,
+  onFetchModels,
+  onFreeModelsOnlyChange,
 }: {
   settings: SettingsDraft;
+  models: OpenRouterModel[];
+  modelsLoading: boolean;
+  modelsError: string;
+  freeModelsOnly: boolean;
   t: (typeof i18n)[AppLanguage];
   onClose: () => void;
   onSave: (settings: SettingsDraft) => void;
   onChange: (settings: SettingsDraft) => void;
+  onFetchModels: () => void;
+  onFreeModelsOnlyChange: (enabled: boolean) => void;
 }) {
+  const visibleModels = freeModelsOnly ? models.filter((model) => model.isFree) : models;
+
   return (
     <div className="modalBackdrop">
       <section className="settingsModal" role="dialog" aria-modal="true" aria-label={t.settingsAria}>
@@ -511,6 +563,42 @@ function SettingsDialog({
               onChange={(event) => onChange({ ...settings, model: event.target.value })}
             />
           </label>
+
+          <div className="modelTools wide">
+            <button className="secondaryButton" type="button" onClick={onFetchModels} disabled={modelsLoading}>
+              {modelsLoading ? t.loadingModels : t.fetchModels}
+            </button>
+            <label className="inlineCheck">
+              <input
+                type="checkbox"
+                checked={freeModelsOnly}
+                onChange={(event) => onFreeModelsOnlyChange(event.target.checked)}
+              />
+              {t.freeModelsOnly}
+            </label>
+          </div>
+
+          <label className="wide">
+            {t.modelName}
+            <select
+              value={visibleModels.some((model) => model.id === settings.model) ? settings.model : ''}
+              onChange={(event) => {
+                if (event.target.value) {
+                  onChange({ ...settings, model: event.target.value });
+                }
+              }}
+            >
+              <option value="">{t.modelListPlaceholder}</option>
+              {visibleModels.map((model) => (
+                <option key={model.id} value={model.id}>
+                  {model.id}
+                  {model.isFree ? ' (free)' : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {modelsError && <div className="formError wide">{modelsError}</div>}
         </div>
 
         <footer>

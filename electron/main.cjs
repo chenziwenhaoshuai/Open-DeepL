@@ -5,6 +5,7 @@ const fs = require('fs');
 
 const isDev = !app.isPackaged;
 const openRouterUrl = 'https://openrouter.ai/api/v1/chat/completions';
+const openRouterModelsUrl = 'https://openrouter.ai/api/v1/models';
 const defaultModel = 'deepseek/deepseek-v4-flash';
 let mainWindow;
 let tray;
@@ -267,6 +268,42 @@ async function translateText({ text, sourceLanguage = 'auto', targetLanguage = '
   return String(content).trim();
 }
 
+async function fetchOpenRouterModels() {
+  const headers = {
+    'Content-Type': 'application/json',
+    'HTTP-Referer': 'https://local.opendeepl.app',
+    'X-Title': 'OpenDeepL',
+  };
+  const apiKey = settings.apiKey || process.env.OPENROUTER_API_KEY;
+  if (apiKey) {
+    headers.Authorization = `Bearer ${apiKey}`;
+  }
+
+  const response = await fetch(openRouterModelsUrl, { headers });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(`OpenRouter models request failed: ${response.status} ${detail.slice(0, 240)}`);
+  }
+
+  const data = await response.json();
+  return (data?.data || []).map((model) => {
+    const pricing = model?.pricing || {};
+    const promptPrice = Number(pricing.prompt || 0);
+    const completionPrice = Number(pricing.completion || 0);
+    const requestPrice = Number(pricing.request || 0);
+    const isFree =
+      String(model?.id || '').includes(':free') ||
+      (promptPrice === 0 && completionPrice === 0 && requestPrice === 0);
+
+    return {
+      id: String(model?.id || ''),
+      name: String(model?.name || model?.id || ''),
+      contextLength: Number(model?.context_length || 0),
+      isFree,
+    };
+  }).filter((model) => model.id);
+}
+
 function focusWindow() {
   if (!mainWindow) {
     createWindow();
@@ -361,3 +398,4 @@ ipcMain.handle('read-clipboard', () => clipboard.readText());
 ipcMain.handle('write-clipboard', (_event, text) => clipboard.writeText(String(text || '')));
 ipcMain.handle('get-settings', () => settings);
 ipcMain.handle('save-settings', (_event, payload) => saveSettings(payload));
+ipcMain.handle('get-openrouter-models', () => fetchOpenRouterModels());

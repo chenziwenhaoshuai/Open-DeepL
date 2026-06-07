@@ -410,6 +410,30 @@ kbd {
   height: 16px;
 }
 
+.modelTools {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.inlineCheck {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 8px !important;
+  font-weight: 700;
+}
+
+.inlineCheck input {
+  width: 16px;
+  height: 16px;
+}
+
+.formError {
+  color: #c2410c;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .primaryButton,
 .secondaryButton {
   height: 36px;
