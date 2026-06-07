@@ -335,9 +335,13 @@ kbd {
 
 .settingsModal {
   width: min(560px, 100%);
+  max-height: calc(100vh - 48px);
   border-radius: 8px;
   background: #fff;
   box-shadow: 0 24px 70px rgba(15, 23, 42, 0.24);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
 }
 
 .settingsModal header,
@@ -368,6 +372,7 @@ kbd {
   grid-template-columns: 1fr 1fr;
   gap: 14px;
   padding: 18px;
+  overflow: auto;
 }
 
 .formGrid label {

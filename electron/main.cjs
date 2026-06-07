@@ -107,9 +107,9 @@ function saveSettings(nextSettings) {
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1040,
-    height: 680,
+    height: 760,
     minWidth: 860,
-    minHeight: 560,
+    minHeight: 620,
     title: 'OpenDeepL',
     backgroundColor: '#ffffff',
     show: false,
