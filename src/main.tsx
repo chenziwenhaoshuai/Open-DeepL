@@ -5,6 +5,7 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
+  CircleHelp,
   Clipboard,
   Copy,
   History,
@@ -42,6 +43,22 @@ const languageOptions = [
 const i18n = {
   zh: {
     settings: '\u8bbe\u7f6e',
+    help: '\u5e2e\u52a9',
+    helpAria: '\u5e2e\u52a9',
+    closeHelp: '\u5173\u95ed\u5e2e\u52a9',
+    helpTitle: '\u5982\u4f55\u83b7\u53d6 OpenRouter API Key',
+    helpIntro: 'OpenDeepL \u4f7f\u7528 OpenRouter API \u8fdb\u884c\u5927\u6a21\u578b\u7ffb\u8bd1\u3002\u4f60\u9700\u8981\u5148\u5728 OpenRouter \u521b\u5efa API Key\uff0c\u7136\u540e\u586b\u5165\u8bbe\u7f6e\u91cc\u3002',
+    helpStep1: '\u6253\u5f00 openrouter.ai \u5e76\u767b\u5f55\u6216\u6ce8\u518c\u8d26\u6237\u3002',
+    helpStep2: '\u8fdb\u5165 Keys \u9875\u9762\uff0c\u70b9\u51fb Create Key \u521b\u5efa\u65b0\u7684 API Key\u3002',
+    helpStep3: '\u590d\u5236\u4ee5 sk-or-v1- \u5f00\u5934\u7684 key\uff0c\u56de\u5230 OpenDeepL \u7684\u8bbe\u7f6e\u7a97\u53e3\u7c98\u8d34\u4fdd\u5b58\u3002',
+    helpStep4: '\u5728\u8bbe\u7f6e\u91cc\u83b7\u53d6\u6a21\u578b\u5217\u8868\uff0c\u53ef\u4ee5\u52fe\u9009\u4ec5\u663e\u793a Free \u6a21\u578b\u540e\u9009\u62e9\u514d\u8d39\u6a21\u578b\u3002',
+    helpQuotaTitle: 'Free \u6a21\u578b\u989d\u5ea6\u8bf4\u660e',
+    helpQuota: '\u6839\u636e OpenRouter \u5b98\u65b9\u8bf4\u660e\uff0c\u666e\u901a\u514d\u8d39\u8d26\u6237\u901a\u5e38\u662f\u6bcf\u5929 50 \u6b21 free \u6a21\u578b\u8c03\u7528\uff1b\u5f53\u8d26\u6237\u5df2\u8d2d\u4e70\u81f3\u5c11 10 credits\uff08\u7ea6 10 \u7f8e\u5143\uff09\u65f6\uff0cfree \u6a21\u578b\u7684\u65e5\u8c03\u7528\u4e0a\u9650\u4f1a\u63d0\u5347\u5230\u6bcf\u5929 1000 \u6b21\u3002',
+    helpNote: '\u5177\u4f53\u9650\u989d\u548c\u53ef\u7528\u6027\u4f1a\u53d7 OpenRouter \u548c\u6a21\u578b\u63d0\u4f9b\u65b9\u7684\u5f53\u524d\u7b56\u7565\u5f71\u54cd\uff0c\u4ee5 OpenRouter \u5b98\u7f51\u4e3a\u51c6\u3002',
+    openRouterLinks: '\u5e38\u7528\u94fe\u63a5',
+    openOpenRouter: '\u6253\u5f00 OpenRouter',
+    openRouterKeys: 'OpenRouter Keys',
+    openRouterPricing: 'OpenRouter Pricing',
     detectSource: '\u68c0\u6d4b\u6e90\u8bed\u8a00',
     swapLanguages: '\u4ea4\u6362\u8bed\u8a00',
     inputPlaceholder: '\u8f93\u5165\u6216\u7c98\u8d34\u6587\u672c\u8fdb\u884c\u7ffb\u8bd1',
@@ -88,6 +105,22 @@ const i18n = {
   },
   en: {
     settings: 'Settings',
+    help: 'Help',
+    helpAria: 'Help',
+    closeHelp: 'Close help',
+    helpTitle: 'How to get an OpenRouter API key',
+    helpIntro: 'OpenDeepL uses the OpenRouter API for LLM translation. Create an API key on OpenRouter, then paste it into Settings.',
+    helpStep1: 'Open openrouter.ai and sign in or create an account.',
+    helpStep2: 'Go to the Keys page and click Create Key.',
+    helpStep3: 'Copy the key that starts with sk-or-v1-, then paste and save it in OpenDeepL Settings.',
+    helpStep4: 'Fetch the model list in Settings. You can enable Free models only and choose a free model.',
+    helpQuotaTitle: 'Free model quota',
+    helpQuota: 'According to OpenRouter, free accounts usually get 50 free-model requests per day. Accounts that have purchased at least 10 credits, about 10 USD, can get 1000 free-model requests per day.',
+    helpNote: 'Limits and availability can change based on OpenRouter and model-provider policy. Check OpenRouter for the current rules.',
+    openRouterLinks: 'Useful links',
+    openOpenRouter: 'Open OpenRouter',
+    openRouterKeys: 'OpenRouter Keys',
+    openRouterPricing: 'OpenRouter Pricing',
     detectSource: 'Detect language',
     swapLanguages: 'Swap languages',
     inputPlaceholder: 'Type or paste text to translate',
@@ -176,6 +209,7 @@ function App() {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [settings, setSettings] = useState<SettingsDraft>(fallbackSettings);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [models, setModels] = useState<OpenRouterModel[]>([]);
   const [modelsLoading, setModelsLoading] = useState(false);
@@ -358,10 +392,16 @@ function App() {
           <Languages size={22} />
           <span>OpenDeepL</span>
         </div>
-        <button className="settingsButton" onClick={() => setSettingsOpen(true)}>
-          <Settings size={18} />
-          {t.settings}
-        </button>
+        <div className="topActions">
+          <button className="settingsButton" onClick={() => setHelpOpen(true)}>
+            <CircleHelp size={18} />
+            {t.help}
+          </button>
+          <button className="settingsButton" onClick={() => setSettingsOpen(true)}>
+            <Settings size={18} />
+            {t.settings}
+          </button>
+        </div>
       </header>
 
       <section className="languageBar">
@@ -538,6 +578,8 @@ function App() {
         </div>
       )}
 
+      {helpOpen && <HelpDialog t={t} onClose={() => setHelpOpen(false)} />}
+
       {settingsOpen && (
         <SettingsDialog
           settings={settings}
@@ -553,6 +595,59 @@ function App() {
           onFreeModelsOnlyChange={setFreeModelsOnly}
         />
       )}
+    </div>
+  );
+}
+
+function HelpDialog({ t, onClose }: { t: (typeof i18n)[AppLanguage]; onClose: () => void }) {
+  const steps = [t.helpStep1, t.helpStep2, t.helpStep3, t.helpStep4];
+
+  return (
+    <div className="modalBackdrop">
+      <section className="helpModal" role="dialog" aria-modal="true" aria-label={t.helpAria}>
+        <header>
+          <h2>{t.helpTitle}</h2>
+          <button className="iconButton" onClick={onClose} aria-label={t.closeHelp}>
+            <X size={19} />
+          </button>
+        </header>
+
+        <div className="helpContent">
+          <p>{t.helpIntro}</p>
+          <ol>
+            {steps.map((step) => (
+              <li key={step}>{step}</li>
+            ))}
+          </ol>
+
+          <section className="helpCallout">
+            <h3>{t.helpQuotaTitle}</h3>
+            <p>{t.helpQuota}</p>
+            <small>{t.helpNote}</small>
+          </section>
+
+          <section>
+            <h3>{t.openRouterLinks}</h3>
+            <div className="helpLinks">
+              <a href="https://openrouter.ai/" target="_blank" rel="noreferrer">
+                {t.openOpenRouter}
+              </a>
+              <a href="https://openrouter.ai/settings/keys" target="_blank" rel="noreferrer">
+                {t.openRouterKeys}
+              </a>
+              <a href="https://openrouter.ai/pricing" target="_blank" rel="noreferrer">
+                {t.openRouterPricing}
+              </a>
+            </div>
+          </section>
+        </div>
+
+        <footer>
+          <button className="primaryButton" onClick={onClose}>
+            OK
+          </button>
+        </footer>
+      </section>
     </div>
   );
 }

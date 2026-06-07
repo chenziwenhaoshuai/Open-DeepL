@@ -62,6 +62,12 @@ button:disabled {
   font-weight: 800;
 }
 
+.topActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .settingsButton,
 .secondary,
 .iconButton {
@@ -391,27 +397,106 @@ kbd {
   overflow: hidden;
 }
 
+.helpModal {
+  width: min(620px, 100%);
+  max-height: calc(100vh - 48px);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.24);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+}
+
 .settingsModal header,
-.settingsModal footer {
+.settingsModal footer,
+.helpModal header,
+.helpModal footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 16px 18px;
 }
 
-.settingsModal header {
+.settingsModal header,
+.helpModal header {
   border-bottom: 1px solid #e7ecf1;
 }
 
-.settingsModal footer {
+.settingsModal footer,
+.helpModal footer {
   justify-content: flex-end;
   gap: 10px;
   border-top: 1px solid #e7ecf1;
 }
 
-.settingsModal h2 {
+.settingsModal h2,
+.helpModal h2 {
   margin: 0;
   font-size: 18px;
+}
+
+.helpContent {
+  padding: 18px;
+  overflow: auto;
+  color: #344054;
+  line-height: 1.55;
+}
+
+.helpContent p {
+  margin: 0 0 14px;
+}
+
+.helpContent ol {
+  margin: 0 0 18px;
+  padding-left: 22px;
+}
+
+.helpContent li {
+  margin: 8px 0;
+}
+
+.helpContent h3 {
+  margin: 0 0 8px;
+  color: #1f2933;
+  font-size: 15px;
+}
+
+.helpCallout {
+  margin: 0 0 18px;
+  padding: 14px;
+  border: 1px solid #b8dcff;
+  border-radius: 8px;
+  background: #f0f8ff;
+}
+
+.helpCallout small {
+  display: block;
+  color: #596575;
+  line-height: 1.45;
+}
+
+.helpLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.helpLinks a {
+  min-height: 34px;
+  border: 1px solid #d8e0e8;
+  border-radius: 6px;
+  color: #006fc9;
+  background: #fff;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 12px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.helpLinks a:hover {
+  background: #eef5fb;
 }
 
 .formGrid {
