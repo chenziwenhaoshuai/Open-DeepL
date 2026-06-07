@@ -393,6 +393,7 @@ function App() {
               segments={sourceSegments}
               activeIndex={hoveredSentence}
               className="sourceSentenceView"
+              scrollActiveIntoView
             />
           ) : (
             <textarea
@@ -562,13 +563,27 @@ function SentenceView({
   activeIndex,
   className,
   onHover,
+  scrollActiveIntoView = false,
 }: {
   text: string;
   segments: string[];
   activeIndex: number | null;
   className?: string;
   onHover?: (index: number | null) => void;
+  scrollActiveIntoView?: boolean;
 }) {
+  const segmentRefs = useRef<Array<HTMLSpanElement | null>>([]);
+
+  useEffect(() => {
+    if (!scrollActiveIntoView || activeIndex === null) return;
+
+    segmentRefs.current[activeIndex]?.scrollIntoView({
+      block: 'center',
+      inline: 'nearest',
+      behavior: 'smooth',
+    });
+  }, [activeIndex, scrollActiveIntoView]);
+
   if (!segments.length) {
     return <div className={`sentenceView ${className || ''}`}>{text}</div>;
   }
@@ -578,6 +593,9 @@ function SentenceView({
       {segments.map((segment, index) => (
         <React.Fragment key={`${index}-${segment.slice(0, 12)}`}>
           <span
+            ref={(element) => {
+              segmentRefs.current[index] = element;
+            }}
             className={activeIndex === index ? 'sentenceSegment hovered' : 'sentenceSegment'}
             onMouseEnter={() => onHover?.(index)}
           >
