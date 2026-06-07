@@ -7,6 +7,7 @@ OutFile "..\release\OpenDeepL-Setup.exe"
 InstallDir "$LOCALAPPDATA\Programs\OpenDeepL"
 InstallDirRegKey HKCU "Software\OpenDeepL" "InstallDir"
 RequestExecutionLevel user
+!define UNINSTALL_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\OpenDeepL"
 
 !define MUI_ABORTWARNING
 !insertmacro MUI_PAGE_WELCOME
@@ -27,6 +28,15 @@ Section "OpenDeepL" SecMain
   File /r "..\release\OpenDeepL-app\*.*"
   WriteRegStr HKCU "Software\OpenDeepL" "InstallDir" "$INSTDIR"
   WriteUninstaller "$INSTDIR\Uninstall.exe"
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayName" "OpenDeepL"
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayVersion" "1.0.0"
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "Publisher" "OpenDeepL"
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "InstallLocation" "$INSTDIR"
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayIcon" "$INSTDIR\OpenDeepL.exe"
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "UninstallString" "$\"$INSTDIR\Uninstall.exe$\""
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "QuietUninstallString" "$\"$INSTDIR\Uninstall.exe$\" /S"
+  WriteRegDWORD HKCU "${UNINSTALL_KEY}" "NoModify" 1
+  WriteRegDWORD HKCU "${UNINSTALL_KEY}" "NoRepair" 1
 SectionEnd
 
 Section "Desktop shortcut" SecDesktop
@@ -44,6 +54,7 @@ Section "Uninstall"
   Delete "$SMPROGRAMS\OpenDeepL\OpenDeepL.lnk"
   Delete "$SMPROGRAMS\OpenDeepL\Uninstall OpenDeepL.lnk"
   RMDir "$SMPROGRAMS\OpenDeepL"
+  DeleteRegKey HKCU "${UNINSTALL_KEY}"
   RMDir /r "$INSTDIR"
   DeleteRegKey HKCU "Software\OpenDeepL"
 SectionEnd
