@@ -217,6 +217,7 @@ function App() {
   const [freeModelsOnly, setFreeModelsOnly] = useState(false);
   const [copied, setCopied] = useState(false);
   const [hoveredSentence, setHoveredSentence] = useState<number | null>(null);
+  const [sourceEditing, setSourceEditing] = useState(false);
   const activeRequestIdRef = useRef('');
   const streamTextRef = useRef('');
   const streamSourceRef = useRef('');
@@ -227,7 +228,7 @@ function App() {
     () => (sourceLanguage === 'auto' ? t.detectSource : sourceLanguage),
     [sourceLanguage, t.detectSource],
   );
-  const alignmentEnabled = settings.sentenceHighlightEnabled && Boolean(output.trim());
+  const alignmentEnabled = settings.sentenceHighlightEnabled && Boolean(output.trim()) && !sourceEditing;
   const sourceSegments = useMemo(() => splitSentences(input), [input]);
   const outputSegments = useMemo(() => splitSentences(output), [output]);
 
@@ -244,6 +245,7 @@ function App() {
       setInput(text);
       setOutput('');
       setHoveredSentence(null);
+      setSourceEditing(false);
       setLoading(true);
       const requestId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
       activeRequestIdRef.current = requestId;
@@ -339,6 +341,9 @@ function App() {
   async function pasteFromClipboard() {
     const text = await window.openDeepL.readClipboard();
     setInput(text);
+    setOutput('');
+    setHoveredSentence(null);
+    setSourceEditing(true);
   }
 
   async function copyOutput() {
@@ -359,6 +364,13 @@ function App() {
       setError('');
     }
     setSettingsOpen(false);
+  }
+
+  function editSourceText(nextInput: string) {
+    setInput(nextInput);
+    setOutput('');
+    setHoveredSentence(null);
+    setSourceEditing(true);
   }
 
   async function fetchModels() {
@@ -434,11 +446,12 @@ function App() {
               activeIndex={hoveredSentence}
               className="sourceSentenceView"
               scrollActiveIntoView
+              onClick={() => setSourceEditing(true)}
             />
           ) : (
             <textarea
               value={input}
-              onChange={(event) => setInput(event.target.value)}
+              onChange={(event) => editSourceText(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' && !event.shiftKey) {
                   event.preventDefault();
@@ -472,6 +485,7 @@ function App() {
                 setInput('');
                 setOutput('');
                 setHoveredSentence(null);
+                setSourceEditing(false);
               }}
               disabled={!input}
             >
@@ -543,6 +557,7 @@ function App() {
                         setInput(item.source);
                         setOutput(item.result);
                         setHoveredSentence(null);
+                        setSourceEditing(false);
                         setHistoryOpen(false);
                       }}
                     >
@@ -658,6 +673,7 @@ function SentenceView({
   activeIndex,
   className,
   onHover,
+  onClick,
   scrollActiveIntoView = false,
 }: {
   text: string;
@@ -665,6 +681,7 @@ function SentenceView({
   activeIndex: number | null;
   className?: string;
   onHover?: (index: number | null) => void;
+  onClick?: () => void;
   scrollActiveIntoView?: boolean;
 }) {
   const segmentRefs = useRef<Array<HTMLSpanElement | null>>([]);
@@ -680,11 +697,15 @@ function SentenceView({
   }, [activeIndex, scrollActiveIntoView]);
 
   if (!segments.length) {
-    return <div className={`sentenceView ${className || ''}`}>{text}</div>;
+    return (
+      <div className={`sentenceView ${className || ''}`} onClick={onClick}>
+        {text}
+      </div>
+    );
   }
 
   return (
-    <div className={`sentenceView ${className || ''}`} onMouseLeave={() => onHover?.(null)}>
+    <div className={`sentenceView ${className || ''}`} onClick={onClick} onMouseLeave={() => onHover?.(null)}>
       {segments.map((segment, index) => (
         <React.Fragment key={`${index}-${segment.slice(0, 12)}`}>
           <span

@@ -263,6 +263,10 @@ kbd {
   cursor: default;
 }
 
+.sourceSentenceView {
+  cursor: text;
+}
+
 .sentenceSegment.hovered {
   background: #fff1a8;
   box-shadow: 0 0 0 2px #fff1a8;
