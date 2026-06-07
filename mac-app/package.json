@@ -40,11 +40,12 @@
     ],
     "mac": {
       "category": "public.app-category.productivity",
+      "identity": "-",
       "target": [
         "dmg",
         "zip"
       ],
-      "hardenedRuntime": true,
+      "hardenedRuntime": false,
       "gatekeeperAssess": false
     },
     "dmg": {

@@ -41,7 +41,13 @@ jobs:
           body: |
             macOS build of OpenDeepL.
 
-            This build is unsigned. If macOS blocks it, open it from Finder with right click > Open.
+            This build uses ad-hoc signing for local testing. If macOS still reports that the app is damaged, run:
+
+            ```bash
+            xattr -cr /Applications/OpenDeepL.app
+            ```
+
+            For public distribution, sign and notarize the app with an Apple Developer ID certificate.
           files: |
             mac-app/release/*.dmg
             mac-app/release/*.zip

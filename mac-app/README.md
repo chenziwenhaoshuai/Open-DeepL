@@ -33,4 +33,10 @@ The packaged `.dmg` and `.zip` files are written to `release/`.
 
 ## Notes
 
-Unsigned builds may require opening the app from Finder with right click > Open. For public distribution, sign and notarize the app with an Apple Developer ID certificate.
+GitHub Release builds use ad-hoc signing for local testing. If macOS still reports that the app is damaged, clear the quarantine flag:
+
+```bash
+xattr -cr /Applications/OpenDeepL.app
+```
+
+For public distribution, sign and notarize the app with an Apple Developer ID certificate. Ad-hoc signing is not a substitute for notarization.
