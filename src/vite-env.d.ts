@@ -4,10 +4,12 @@ type TranslatePayload = {
   text: string;
   sourceLanguage?: string;
   targetLanguage?: string;
+  requestId?: string;
 };
 
 type OpenDeepLBridge = {
   translate: (payload: TranslatePayload) => Promise<string>;
+  translateStream: (payload: TranslatePayload) => Promise<string>;
   readClipboard: () => Promise<string>;
   writeClipboard: (text: string) => Promise<void>;
   getSettings: () => Promise<AppSettings>;
@@ -16,6 +18,8 @@ type OpenDeepLBridge = {
   onShortcutTranslate: (callback: (payload: { text: string }) => void) => () => void;
   onShortcutEmpty: (callback: () => void) => () => void;
   onAppError: (callback: (message: string) => void) => () => void;
+  onTranslateStreamChunk: (callback: (payload: { requestId: string; delta: string }) => void) => () => void;
+  onTranslateStreamDone: (callback: (payload: { requestId: string; text: string }) => void) => () => void;
 };
 
 type OpenRouterModel = {

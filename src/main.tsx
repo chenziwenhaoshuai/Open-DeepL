@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
   ArrowLeftRight,
@@ -163,6 +163,9 @@ function App() {
   const [modelsError, setModelsError] = useState('');
   const [freeModelsOnly, setFreeModelsOnly] = useState(false);
   const [copied, setCopied] = useState(false);
+  const activeRequestIdRef = useRef('');
+  const streamTextRef = useRef('');
+  const streamSourceRef = useRef('');
 
   const t = i18n[settings.appLanguage];
 
@@ -182,32 +185,68 @@ function App() {
       }
 
       setInput(text);
+      setOutput('');
       setLoading(true);
+      const requestId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      activeRequestIdRef.current = requestId;
+      streamTextRef.current = '';
+      streamSourceRef.current = trimmed;
       try {
-        const result = await window.openDeepL.translate({
+        await window.openDeepL.translateStream({
+          requestId,
           text: trimmed,
           sourceLanguage,
           targetLanguage,
         });
-        setOutput(result);
+      } catch (translationError) {
+        if (activeRequestIdRef.current === requestId) {
+          activeRequestIdRef.current = '';
+        }
+        setError(translationError instanceof Error ? translationError.message : t.translateFailed);
+        setLoading(false);
+      } finally {
+        if (activeRequestIdRef.current === requestId && !streamTextRef.current) {
+          setLoading(false);
+        }
+      }
+    },
+    [input, sourceLanguage, sourceLabel, targetLanguage, t.translateFailed],
+  );
+
+  useEffect(() => {
+    const offChunk = window.openDeepL.onTranslateStreamChunk(({ requestId, delta }) => {
+      if (requestId !== activeRequestIdRef.current) return;
+      streamTextRef.current += delta;
+      setOutput(streamTextRef.current);
+    });
+    const offDone = window.openDeepL.onTranslateStreamDone(({ requestId, text }) => {
+      if (requestId !== activeRequestIdRef.current) return;
+
+      const result = text || streamTextRef.current;
+      activeRequestIdRef.current = '';
+      streamTextRef.current = result;
+      setOutput(result);
+      setLoading(false);
+
+      if (result.trim()) {
         setHistory((items) => [
           {
             id: Date.now(),
-            source: trimmed,
+            source: streamSourceRef.current,
             result,
             sourceLanguage: sourceLabel,
             targetLanguage,
           },
           ...items.slice(0, 9),
         ]);
-      } catch (translationError) {
-        setError(translationError instanceof Error ? translationError.message : t.translateFailed);
-      } finally {
-        setLoading(false);
       }
-    },
-    [input, sourceLanguage, sourceLabel, targetLanguage, t.translateFailed],
-  );
+    });
+
+    return () => {
+      offChunk();
+      offDone();
+    };
+  }, [sourceLabel, targetLanguage]);
 
   useEffect(() => {
     window.openDeepL

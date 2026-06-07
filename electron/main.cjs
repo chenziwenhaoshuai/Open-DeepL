@@ -268,6 +268,97 @@ async function translateText({ text, sourceLanguage = 'auto', targetLanguage = '
   return String(content).trim();
 }
 
+function buildTranslateRequest({ text, sourceLanguage = 'auto', targetLanguage = 'English (US)', stream = false }) {
+  const apiKey = settings.apiKey || process.env.OPENROUTER_API_KEY;
+  const model = settings.model || process.env.OPENROUTER_MODEL || defaultModel;
+
+  if (!apiKey) {
+    throw new Error('Missing OpenRouter API key. Please open Settings and configure it.');
+  }
+
+  const trimmed = String(text || '').trim();
+  if (!trimmed) {
+    throw new Error('No text to translate.');
+  }
+
+  const prompt = [
+    'You are a professional translation engine.',
+    'Return only the translated text. Do not explain, label, summarize, or add markdown.',
+    `Source language: ${sourceLanguage}`,
+    `Target language: ${targetLanguage}`,
+    'Keep formatting, paragraph breaks, numbers, and punctuation as faithfully as possible.',
+  ].join('\n');
+
+  return {
+    url: openRouterUrl,
+    init: {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://local.opendeepl.app',
+        'X-Title': 'OpenDeepL',
+      },
+      body: JSON.stringify({
+        model,
+        stream,
+        messages: [
+          { role: 'system', content: prompt },
+          { role: 'user', content: trimmed },
+        ],
+        temperature: 0.2,
+      }),
+    },
+  };
+}
+
+async function translateTextStream(event, payload) {
+  const requestId = String(payload?.requestId || Date.now());
+  const { url, init } = buildTranslateRequest({ ...payload, stream: true });
+  const response = await fetch(url, init);
+
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(`OpenRouter request failed: ${response.status} ${detail.slice(0, 240)}`);
+  }
+
+  if (!response.body) {
+    throw new Error('OpenRouter did not return a readable stream.');
+  }
+
+  const decoder = new TextDecoder();
+  const reader = response.body.getReader();
+  let buffer = '';
+  let fullText = '';
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split(/\r?\n/);
+    buffer = lines.pop() || '';
+
+    for (const line of lines) {
+      const trimmedLine = line.trim();
+      if (!trimmedLine.startsWith('data:')) continue;
+
+      const data = trimmedLine.slice(5).trim();
+      if (!data || data === '[DONE]') continue;
+
+      const chunk = JSON.parse(data);
+      const delta = chunk?.choices?.[0]?.delta?.content || '';
+      if (delta) {
+        fullText += delta;
+        event.sender.send('translate-stream-chunk', { requestId, delta });
+      }
+    }
+  }
+
+  event.sender.send('translate-stream-done', { requestId, text: fullText.trim() });
+  return fullText.trim();
+}
+
 async function fetchOpenRouterModels() {
   const headers = {
     'Content-Type': 'application/json',
@@ -394,6 +485,7 @@ app.on('window-all-closed', () => {
 });
 
 ipcMain.handle('translate', (_event, payload) => translateText(payload));
+ipcMain.handle('translate-stream', (event, payload) => translateTextStream(event, payload));
 ipcMain.handle('read-clipboard', () => clipboard.readText());
 ipcMain.handle('write-clipboard', (_event, text) => clipboard.writeText(String(text || '')));
 ipcMain.handle('get-settings', () => settings);
