@@ -22,6 +22,16 @@ let settings = {
   autoLaunch: false,
 };
 
+configureUserDataPath();
+
+function configureUserDataPath() {
+  const userDataPath = isDev
+    ? path.join(__dirname, '..', '.runtime', 'user-data')
+    : path.join(path.dirname(process.execPath), 'user-data');
+
+  app.setPath('userData', userDataPath);
+}
+
 function loadEnv() {
   if (!isDev) return;
 
@@ -175,13 +185,17 @@ function handleWindowClose(event) {
   const zh = settings.appLanguage === 'zh';
   const result = dialog.showMessageBoxSync(mainWindow, {
     type: 'question',
-    buttons: zh ? ['隐藏到托盘', '退出应用', '取消'] : ['Hide to tray', 'Quit app', 'Cancel'],
+    buttons: zh
+      ? ['\u9690\u85cf\u5230\u6258\u76d8', '\u9000\u51fa\u5e94\u7528', '\u53d6\u6d88']
+      : ['Hide to tray', 'Quit app', 'Cancel'],
     defaultId: 0,
     cancelId: 2,
     title: 'OpenDeepL',
-    message: zh ? '关闭窗口时要怎么处理 OpenDeepL？' : 'What should OpenDeepL do when you close the window?',
+    message: zh
+      ? '\u5173\u95ed\u7a97\u53e3\u65f6\u8981\u600e\u4e48\u5904\u7406 OpenDeepL\uff1f'
+      : 'What should OpenDeepL do when you close the window?',
     detail: zh
-      ? '隐藏到托盘后，快捷键翻译仍会工作，并会在触发时重新显示窗口。'
+      ? '\u9690\u85cf\u5230\u6258\u76d8\u540e\uff0c\u5feb\u6377\u952e\u7ffb\u8bd1\u4ecd\u4f1a\u5de5\u4f5c\uff0c\u5e76\u4f1a\u5728\u89e6\u53d1\u65f6\u91cd\u65b0\u663e\u793a\u7a97\u53e3\u3002'
       : 'When hidden to tray, shortcut translation keeps working and will show the window when triggered.',
   });
 

@@ -61,6 +61,7 @@ deepseek/deepseek-v4-flash
 - `.env.example` 只包含占位符。
 - Release 版本不会读取项目根目录的 `.env`。
 - 用户需要在应用设置里自行配置 API Key。
+- 安装版会把用户配置保存到安装目录下的 `user-data/settings.json`，不会默认写入 C 盘的 Roaming 目录。
 
 ## 🛠️ 本地开发
 
