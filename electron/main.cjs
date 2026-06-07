@@ -108,7 +108,7 @@ function saveSettings(nextSettings) {
 }
 
 function createWindow() {
-  mainWindow = new BrowserWindow({
+  const window = new BrowserWindow({
     width: 1040,
     height: 760,
     minWidth: 860,
@@ -123,13 +123,21 @@ function createWindow() {
     },
   });
 
-  mainWindow.once('ready-to-show', () => mainWindow.show());
-  mainWindow.on('close', handleWindowClose);
+  mainWindow = window;
+  window.once('ready-to-show', () => {
+    if (!window.isDestroyed()) window.show();
+  });
+  window.on('close', handleWindowClose);
+  window.on('closed', () => {
+    if (mainWindow === window) {
+      mainWindow = undefined;
+    }
+  });
 
   if (isDev) {
-    mainWindow.loadURL('http://127.0.0.1:5173');
+    window.loadURL('http://127.0.0.1:5173');
   } else {
-    mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
+    window.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
   }
 }
 
@@ -214,6 +222,11 @@ function handleWindowClose(event) {
 
 function quitApp() {
   isQuitting = true;
+  unregisterShortcut();
+  if (tray) {
+    tray.destroy();
+    tray = undefined;
+  }
   app.quit();
 }
 
@@ -315,6 +328,7 @@ function buildTranslationSystemPrompt(sourceLanguage, targetLanguage) {
 async function translateTextStream(event, payload) {
   const requestId = String(payload?.requestId || Date.now());
   const { url, init } = buildTranslateRequest({ ...payload, stream: true });
+  const sender = event.sender;
   const response = await fetch(url, init);
 
   if (!response.ok) {
@@ -332,6 +346,11 @@ async function translateTextStream(event, payload) {
   let fullText = '';
 
   while (true) {
+    if (sender.isDestroyed()) {
+      await reader.cancel().catch(() => {});
+      return fullText.trim();
+    }
+
     const { value, done } = await reader.read();
     if (done) break;
 
@@ -350,12 +369,15 @@ async function translateTextStream(event, payload) {
       const delta = chunk?.choices?.[0]?.delta?.content || '';
       if (delta) {
         fullText += delta;
-        event.sender.send('translate-stream-chunk', { requestId, delta });
+        if (!sendToWebContents(sender, 'translate-stream-chunk', { requestId, delta })) {
+          await reader.cancel().catch(() => {});
+          return fullText.trim();
+        }
       }
     }
   }
 
-  event.sender.send('translate-stream-done', { requestId, text: fullText.trim() });
+  sendToWebContents(sender, 'translate-stream-done', { requestId, text: fullText.trim() });
   return fullText.trim();
 }
 
@@ -396,7 +418,7 @@ async function fetchOpenRouterModels() {
 }
 
 function focusWindow() {
-  if (!mainWindow) {
+  if (!mainWindow || mainWindow.isDestroyed()) {
     createWindow();
     return;
   }
@@ -409,19 +431,19 @@ async function translateClipboard() {
   const text = clipboard.readText().trim();
   if (!text) {
     focusWindow();
-    mainWindow?.webContents.send('shortcut-empty');
+    sendToMainWindow('shortcut-empty');
     return;
   }
 
   focusWindow();
-  mainWindow?.webContents.send('shortcut-translate', { text });
+  sendToMainWindow('shortcut-translate', { text });
 }
 
 function registerShortcut() {
   keyListener = new GlobalKeyboardListener({
     windows: {
       onError: (errorCode) => {
-        mainWindow?.webContents.send('app-error', `Global shortcut listener error: ${errorCode}`);
+        sendToMainWindow('app-error', `Global shortcut listener error: ${errorCode}`);
       },
     },
   });
@@ -436,7 +458,7 @@ function registerShortcut() {
       lastCopyAt = 0;
       setTimeout(() => {
         translateClipboard().catch((error) => {
-          mainWindow?.webContents.send('app-error', error.message);
+          sendToMainWindow('app-error', error.message);
         });
       }, 140);
       return;
@@ -444,8 +466,19 @@ function registerShortcut() {
 
     lastCopyAt = now;
   }).catch((error) => {
-    mainWindow?.webContents.send('app-error', `Global shortcut listener failed to start: ${error.message}`);
+    sendToMainWindow('app-error', `Global shortcut listener failed to start: ${error.message}`);
   });
+}
+
+function sendToMainWindow(channel, payload) {
+  if (!mainWindow || mainWindow.isDestroyed()) return false;
+  return sendToWebContents(mainWindow.webContents, channel, payload);
+}
+
+function sendToWebContents(webContents, channel, payload) {
+  if (!webContents || webContents.isDestroyed()) return false;
+  webContents.send(channel, payload);
+  return true;
 }
 
 function isModifierDown(down, modifier) {
