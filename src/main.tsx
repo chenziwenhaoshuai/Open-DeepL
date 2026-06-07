@@ -352,43 +352,44 @@ function App() {
         <span>
           {t.model}: {settings.model}
         </span>
+        {history.length > 0 && (
+          <div className="historyDock" aria-label={t.historyAria}>
+            <button className="historyDockButton" onClick={() => setHistoryOpen((open) => !open)}>
+              <span>
+                <History size={17} />
+                {t.history}
+              </span>
+              <span className="historyCount">
+                {history.length}
+                {historyOpen ? <ChevronDown size={17} /> : <ChevronUp size={17} />}
+              </span>
+            </button>
+            {historyOpen && (
+              <div className="historyPanel">
+                <div className="historyList">
+                  {history.map((item) => (
+                    <button
+                      key={item.id}
+                      className="historyItem"
+                      onClick={() => {
+                        setInput(item.source);
+                        setOutput(item.result);
+                        setHistoryOpen(false);
+                      }}
+                    >
+                      <span>{item.source}</span>
+                      <small>
+                        {item.sourceLanguage} &gt; {item.targetLanguage}
+                      </small>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
         {error && <strong>{error}</strong>}
       </aside>
-
-      {history.length > 0 && (
-        <section className={historyOpen ? 'historyPanel open' : 'historyPanel'} aria-label={t.historyAria}>
-          <button className="historyHeader" onClick={() => setHistoryOpen((open) => !open)}>
-            <span>
-              <History size={17} />
-              {t.history}
-            </span>
-            <span className="historyCount">
-              {history.length}
-              {historyOpen ? <ChevronDown size={17} /> : <ChevronUp size={17} />}
-            </span>
-          </button>
-          {historyOpen && (
-            <div className="historyList">
-              {history.map((item) => (
-                <button
-                  key={item.id}
-                  className="historyItem"
-                  onClick={() => {
-                    setInput(item.source);
-                    setOutput(item.result);
-                    setHistoryOpen(false);
-                  }}
-                >
-                  <span>{item.source}</span>
-                  <small>
-                    {item.sourceLanguage} &gt; {item.targetLanguage}
-                  </small>
-                </button>
-              ))}
-            </div>
-          )}
-        </section>
-      )}
 
       {settingsOpen && (
         <SettingsDialog

@@ -124,6 +124,8 @@ textarea {
   color: #1d2733;
   font-size: 24px;
   line-height: 1.45;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 textarea::placeholder {
@@ -199,6 +201,8 @@ kbd {
   font-size: 24px;
   line-height: 1.45;
   color: #1d2733;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .bottomBar {
@@ -209,6 +213,7 @@ kbd {
   border-top: 1px solid #e5e9ee;
   border-bottom: 0;
   font-size: 13px;
+  position: relative;
 }
 
 .shortcutStatus {
@@ -238,43 +243,50 @@ kbd {
   white-space: nowrap;
 }
 
-.historyPanel {
-  position: fixed;
-  right: 16px;
-  bottom: 58px;
-  width: 280px;
-  border: 1px solid #dde4ec;
-  border-radius: 8px;
-  background: #fff;
-  box-shadow: 0 18px 50px rgba(18, 31, 47, 0.14);
-  overflow: hidden;
+.historyDock {
+  margin-left: auto;
+  position: relative;
+  display: flex;
+  align-items: center;
+  align-self: stretch;
 }
 
-.historyPanel.open {
-  max-height: min(360px, calc(100vh - 150px));
-}
-
-.historyHeader {
-  width: 100%;
-  min-height: 42px;
-  border: 0;
-  padding: 12px 14px;
+.historyDockButton {
+  min-width: 190px;
+  height: 34px;
+  border: 1px solid #d5dce4;
+  border-radius: 6px;
   background: #fff;
   color: #1f2933;
   font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
+  padding: 0 11px;
 }
 
-.historyPanel.open .historyHeader {
-  border-bottom: 1px solid #edf1f5;
+.historyDockButton:hover {
+  background: #eef5fb;
 }
 
-.historyHeader span {
+.historyDockButton span {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+}
+
+.historyPanel {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  width: 280px;
+  border: 1px solid #dde4ec;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 18px 50px rgba(18, 31, 47, 0.14);
+  overflow: hidden;
+  z-index: 20;
 }
 
 .historyCount {
@@ -435,8 +447,16 @@ kbd {
     border-bottom: 1px solid #e3e8ee;
   }
 
-  .bottomBar strong {
+.bottomBar strong {
     max-width: 100%;
     margin-left: 0;
+  }
+
+  .historyDock {
+    margin-left: 0;
+  }
+
+  .historyDockButton {
+    min-width: 170px;
   }
 }
