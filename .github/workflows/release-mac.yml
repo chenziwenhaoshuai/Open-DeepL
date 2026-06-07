@@ -1,0 +1,47 @@
+name: Release macOS app
+
+on:
+  push:
+    tags:
+      - "mac-v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-mac:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: mac-app/package-lock.json
+
+      - name: Install dependencies
+        working-directory: mac-app
+        run: npm ci
+
+      - name: Build macOS packages
+        working-directory: mac-app
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: npm run dist:mac
+
+      - name: Upload DMG to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: OpenDeepL macOS ${{ github.ref_name }}
+          body: |
+            macOS build of OpenDeepL.
+
+            This build is unsigned. If macOS blocks it, open it from Finder with right click > Open.
+          files: |
+            mac-app/release/*.dmg
+            mac-app/release/*.zip
