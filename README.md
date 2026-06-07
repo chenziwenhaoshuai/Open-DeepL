@@ -8,9 +8,9 @@
 
 直接到 Releases 下载 Windows 单文件版：
 
-👉 [下载 OpenDeepL.exe](https://github.com/chenziwenhaoshuai/Open-DeepL/releases/latest)
+👉 [下载 OpenDeepL-Setup.exe](https://github.com/chenziwenhaoshuai/Open-DeepL/releases/latest)
 
-下载后直接运行 `OpenDeepL.exe` 即可。首次启动会自动打开设置页，引导你配置 OpenRouter API Key。
+下载后运行 `OpenDeepL-Setup.exe` 安装。安装过程中可以选择是否创建桌面快捷方式和开始菜单快捷方式。首次启动会自动打开设置页，引导你配置 OpenRouter API Key。
 
 ## ✨ 功能亮点
 
@@ -25,11 +25,12 @@
 
 ## 🧭 快速使用
 
-1. 下载并运行 [Release 里的 exe](https://github.com/chenziwenhaoshuai/Open-DeepL/releases/latest)。
-2. 在首次弹出的设置页里填入 OpenRouter API Key。
-3. 需要时修改模型名，例如 `deepseek/deepseek-v4-flash`。
-4. 在任意软件中选中文本。
-5. 按默认快捷键 `Ctrl+C+C`，OpenDeepL 会读取剪贴板并翻译。
+1. 下载并运行 [Release 里的安装器](https://github.com/chenziwenhaoshuai/Open-DeepL/releases/latest)。
+2. 安装时按需勾选桌面快捷方式和开始菜单快捷方式。
+3. 在首次弹出的设置页里填入 OpenRouter API Key。
+4. 需要时修改模型名，例如 `deepseek/deepseek-v4-flash`。
+5. 在任意软件中选中文本。
+6. 按默认快捷键 `Ctrl+C+C`，OpenDeepL 会读取剪贴板并翻译。
 
 ## ⚙️ OpenRouter 配置
 
