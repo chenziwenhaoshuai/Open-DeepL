@@ -7,7 +7,8 @@
     "dev": "concurrently -k \"vite --host 127.0.0.1\" \"wait-on http://127.0.0.1:5173 && electron .\"",
     "build": "tsc --noEmit && vite build",
     "start": "electron .",
-    "dist": "npm run build && electron-builder"
+    "dist": "npm run build && electron-builder",
+    "dist:win": "npm run build && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-windows.ps1"
   },
   "keywords": [],
   "author": "",
