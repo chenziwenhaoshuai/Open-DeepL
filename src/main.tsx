@@ -186,14 +186,31 @@ function formatShortcut(settings: Pick<AppSettings, 'shortcutModifier' | 'shortc
 function splitSentences(text: string) {
   const normalized = text.replace(/\r\n/g, '\n');
   const segments: string[] = [];
-  const pattern = /[^.!?。！？；;\n]+[.!?。！？；;]*|\n+/g;
-  let match: RegExpExecArray | null;
+  const boundaryMarks = new Set(['.', '!', '?', '\u3002', '\uff01', '\uff1f', '\uff1b', ';', '\n']);
+  let start = 0;
+  let index = 0;
 
-  while ((match = pattern.exec(normalized))) {
-    const segment = match[0];
+  while (index < normalized.length) {
+    if (!boundaryMarks.has(normalized[index])) {
+      index += 1;
+      continue;
+    }
+
+    index += 1;
+    while (index < normalized.length && /\s/.test(normalized[index])) {
+      index += 1;
+    }
+
+    const segment = normalized.slice(start, index);
     if (segment.trim()) {
       segments.push(segment);
     }
+    start = index;
+  }
+
+  const rest = normalized.slice(start);
+  if (rest.trim()) {
+    segments.push(rest);
   }
 
   return segments.length ? segments : normalized.trim() ? [normalized] : [];
@@ -217,10 +234,11 @@ function App() {
   const [freeModelsOnly, setFreeModelsOnly] = useState(false);
   const [copied, setCopied] = useState(false);
   const [hoveredSentence, setHoveredSentence] = useState<number | null>(null);
-  const [sourceEditing, setSourceEditing] = useState(false);
+  const [sourceScrollTop, setSourceScrollTop] = useState(0);
   const activeRequestIdRef = useRef('');
   const streamTextRef = useRef('');
   const streamSourceRef = useRef('');
+  const sourceTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const t = i18n[settings.appLanguage];
 
@@ -228,7 +246,7 @@ function App() {
     () => (sourceLanguage === 'auto' ? t.detectSource : sourceLanguage),
     [sourceLanguage, t.detectSource],
   );
-  const alignmentEnabled = settings.sentenceHighlightEnabled && Boolean(output.trim()) && !sourceEditing;
+  const alignmentEnabled = settings.sentenceHighlightEnabled && Boolean(output.trim());
   const sourceSegments = useMemo(() => splitSentences(input), [input]);
   const outputSegments = useMemo(() => splitSentences(output), [output]);
 
@@ -245,7 +263,6 @@ function App() {
       setInput(text);
       setOutput('');
       setHoveredSentence(null);
-      setSourceEditing(false);
       setLoading(true);
       const requestId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
       activeRequestIdRef.current = requestId;
@@ -343,7 +360,6 @@ function App() {
     setInput(text);
     setOutput('');
     setHoveredSentence(null);
-    setSourceEditing(true);
   }
 
   async function copyOutput() {
@@ -370,7 +386,6 @@ function App() {
     setInput(nextInput);
     setOutput('');
     setHoveredSentence(null);
-    setSourceEditing(true);
   }
 
   async function fetchModels() {
@@ -439,19 +454,13 @@ function App() {
 
       <main className="workspace">
         <section className="pane inputPane">
-          {alignmentEnabled ? (
-            <SentenceView
-              text={input}
-              segments={sourceSegments}
-              activeIndex={hoveredSentence}
-              className="sourceSentenceView"
-              scrollActiveIntoView
-              onClick={() => setSourceEditing(true)}
-            />
-          ) : (
+          <div className="sourceEditor">
             <textarea
+              ref={sourceTextareaRef}
+              className={alignmentEnabled ? 'sourceTextarea withSentenceOverlay' : 'sourceTextarea'}
               value={input}
               onChange={(event) => editSourceText(event.target.value)}
+              onScroll={(event) => setSourceScrollTop(event.currentTarget.scrollTop)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' && !event.shiftKey) {
                   event.preventDefault();
@@ -461,7 +470,23 @@ function App() {
               placeholder={t.inputPlaceholder}
               spellCheck={false}
             />
-          )}
+            {alignmentEnabled && (
+              <SentenceView
+                text={input}
+                segments={sourceSegments}
+                activeIndex={hoveredSentence}
+                className="sourceSentenceView sourceSentenceOverlay"
+                scrollActiveIntoView
+                scrollTop={sourceScrollTop}
+                onScrollPositionChange={(nextScrollTop) => {
+                  setSourceScrollTop(nextScrollTop);
+                  if (sourceTextareaRef.current) {
+                    sourceTextareaRef.current.scrollTop = nextScrollTop;
+                  }
+                }}
+              />
+            )}
+          </div>
           {!input && (
             <div className="emptyState">
               <p>
@@ -485,7 +510,6 @@ function App() {
                 setInput('');
                 setOutput('');
                 setHoveredSentence(null);
-                setSourceEditing(false);
               }}
               disabled={!input}
             >
@@ -557,7 +581,6 @@ function App() {
                         setInput(item.source);
                         setOutput(item.result);
                         setHoveredSentence(null);
-                        setSourceEditing(false);
                         setHistoryOpen(false);
                       }}
                     >
@@ -675,6 +698,8 @@ function SentenceView({
   onHover,
   onClick,
   scrollActiveIntoView = false,
+  scrollTop,
+  onScrollPositionChange,
 }: {
   text: string;
   segments: string[];
@@ -683,8 +708,11 @@ function SentenceView({
   onHover?: (index: number | null) => void;
   onClick?: () => void;
   scrollActiveIntoView?: boolean;
+  scrollTop?: number;
+  onScrollPositionChange?: (scrollTop: number) => void;
 }) {
   const segmentRefs = useRef<Array<HTMLSpanElement | null>>([]);
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!scrollActiveIntoView || activeIndex === null) return;
@@ -694,18 +722,35 @@ function SentenceView({
       inline: 'nearest',
       behavior: 'smooth',
     });
+    window.setTimeout(() => {
+      if (containerRef.current) {
+        onScrollPositionChange?.(containerRef.current.scrollTop);
+      }
+    }, 160);
   }, [activeIndex, scrollActiveIntoView]);
+
+  useEffect(() => {
+    if (scrollTop === undefined || !containerRef.current) return;
+    if (Math.abs(containerRef.current.scrollTop - scrollTop) > 1) {
+      containerRef.current.scrollTop = scrollTop;
+    }
+  }, [scrollTop]);
 
   if (!segments.length) {
     return (
-      <div className={`sentenceView ${className || ''}`} onClick={onClick}>
+      <div ref={containerRef} className={`sentenceView ${className || ''}`} onClick={onClick}>
         {text}
       </div>
     );
   }
 
   return (
-    <div className={`sentenceView ${className || ''}`} onClick={onClick} onMouseLeave={() => onHover?.(null)}>
+    <div
+      ref={containerRef}
+      className={`sentenceView ${className || ''}`}
+      onClick={onClick}
+      onMouseLeave={() => onHover?.(null)}
+    >
       {segments.map((segment, index) => (
         <React.Fragment key={`${index}-${segment.slice(0, 12)}`}>
           <span
@@ -717,7 +762,6 @@ function SentenceView({
           >
             {segment}
           </span>
-          {index < segments.length - 1 ? ' ' : ''}
         </React.Fragment>
       ))}
     </div>

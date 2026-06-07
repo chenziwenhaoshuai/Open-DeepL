@@ -152,6 +152,27 @@ textarea::placeholder {
   color: #7e8794;
 }
 
+.sourceEditor {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.sourceTextarea {
+  position: relative;
+  z-index: 1;
+}
+
+.sourceTextarea.withSentenceOverlay {
+  color: transparent;
+  caret-color: #1d2733;
+}
+
+.sourceTextarea.withSentenceOverlay::selection {
+  color: transparent;
+  background: rgba(0, 111, 201, 0.22);
+}
+
 .emptyState {
   position: absolute;
   inset: 72px 26px 64px;
@@ -265,6 +286,13 @@ kbd {
 
 .sourceSentenceView {
   cursor: text;
+}
+
+.sourceSentenceOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
 }
 
 .sentenceSegment.hovered {
