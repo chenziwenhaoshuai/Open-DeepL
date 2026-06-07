@@ -50,6 +50,7 @@ const i18n = {
     pasteFromClipboard: '\u4ece\u526a\u8d34\u677f\u7c98\u8d34',
     paste: '\u7c98\u8d34',
     clear: '\u6e05\u7a7a',
+    translate: '\u7ffb\u8bd1',
     translating: '\u6b63\u5728\u7ffb\u8bd1...',
     resultPlaceholder: '\u7ffb\u8bd1\u7ed3\u679c\u4f1a\u663e\u793a\u5728\u8fd9\u91cc',
     copied: '\u5df2\u590d\u5236',
@@ -79,6 +80,7 @@ const i18n = {
     cancel: '\u53d6\u6d88',
     save: '\u4fdd\u5b58',
     translateFailed: '\u7ffb\u8bd1\u5931\u8d25\u3002',
+    errorTitle: '\u51fa\u9519\u4e86',
     loadSettingsFailed: '\u8bfb\u53d6\u8bbe\u7f6e\u5931\u8d25\u3002',
     emptyClipboard: '\u526a\u8d34\u677f\u6ca1\u6709\u53ef\u7ffb\u8bd1\u7684\u6587\u672c\u3002\u8bf7\u5148\u9009\u4e2d\u6587\u672c\u5e76\u590d\u5236\uff0c\u518d\u89e6\u53d1\u5feb\u6377\u952e\u3002',
     apiKeyRequired: '\u8bf7\u5148\u5728\u8bbe\u7f6e\u91cc\u914d\u7f6e OpenRouter API Key\u3002',
@@ -93,6 +95,7 @@ const i18n = {
     pasteFromClipboard: 'Paste from clipboard',
     paste: 'Paste',
     clear: 'Clear',
+    translate: 'Translate',
     translating: 'Translating...',
     resultPlaceholder: 'Translation results appear here',
     copied: 'Copied',
@@ -122,6 +125,7 @@ const i18n = {
     cancel: 'Cancel',
     save: 'Save',
     translateFailed: 'Translation failed.',
+    errorTitle: 'Something went wrong',
     loadSettingsFailed: 'Failed to load settings.',
     emptyClipboard: 'The clipboard has no translatable text. Select and copy text first, then trigger the shortcut.',
     apiKeyRequired: 'Configure your OpenRouter API key in Settings first.',
@@ -212,7 +216,6 @@ function App() {
         setSettings(loadedSettings);
         if (!loadedSettings.apiKey.trim()) {
           setSettingsOpen(true);
-          setError(i18n[loadedSettings.appLanguage].apiKeyRequired);
         }
       })
       .catch((settingsError) => {
@@ -235,13 +238,6 @@ function App() {
       offError();
     };
   }, [runTranslate, settings.appLanguage]);
-
-  useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      if (input.trim()) runTranslate(input);
-    }, 520);
-    return () => window.clearTimeout(timeout);
-  }, [input, runTranslate]);
 
   async function pasteFromClipboard() {
     const text = await window.openDeepL.readClipboard();
@@ -331,6 +327,12 @@ function App() {
           <textarea
             value={input}
             onChange={(event) => setInput(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                runTranslate(input);
+              }
+            }}
             placeholder={t.inputPlaceholder}
             spellCheck={false}
           />
@@ -353,6 +355,9 @@ function App() {
             </button>
             <button className="secondary" onClick={() => setInput('')} disabled={!input}>
               {t.clear}
+            </button>
+            <button className="primaryFooterButton" onClick={() => runTranslate(input)} disabled={!input.trim() || loading}>
+              {loading ? t.translating : t.translate}
             </button>
           </div>
         </section>
@@ -420,8 +425,26 @@ function App() {
             )}
           </div>
         )}
-        {error && <strong>{error}</strong>}
       </aside>
+
+      {error && (
+        <div className="errorToast" role="alertdialog" aria-modal="true" aria-label={t.errorTitle}>
+          <section className="errorDialog">
+            <header>
+              <strong>{t.errorTitle}</strong>
+              <button className="iconButton" onClick={() => setError('')} aria-label={t.closeSettings}>
+                <X size={18} />
+              </button>
+            </header>
+            <p>{error}</p>
+            <footer>
+              <button className="primaryButton" onClick={() => setError('')}>
+                OK
+              </button>
+            </footer>
+          </section>
+        </div>
+      )}
 
       {settingsOpen && (
         <SettingsDialog
