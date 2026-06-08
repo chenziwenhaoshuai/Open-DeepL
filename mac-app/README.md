@@ -27,7 +27,7 @@ The packaged `.dmg` and `.zip` files are written to `release/`.
 
 - The default shortcut is `Command+C+C`.
 - If `Command+C` conflicts with normal copy behavior on your Mac, open Settings and change the modifier to `Option`; the shortcut becomes `Option+C+C`.
-- The app uses Electron's native `globalShortcut` API for macOS.
+- The app listens for the shortcut passively (via `node-global-key-listener`) so it never intercepts the system copy command.
 - Launch at startup uses macOS login item settings.
 - Settings are stored under Electron's user data directory in development and next to the packaged app in production.
 

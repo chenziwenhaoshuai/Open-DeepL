@@ -1,4 +1,5 @@
-const { app, BrowserWindow, Menu, Tray, clipboard, dialog, globalShortcut, ipcMain, nativeImage } = require('electron');
+const { app, BrowserWindow, Menu, Tray, clipboard, dialog, ipcMain, nativeImage } = require('electron');
+const { GlobalKeyboardListener } = require('node-global-key-listener');
 const path = require('path');
 const fs = require('fs');
 
@@ -10,6 +11,7 @@ let mainWindow;
 let tray;
 let isQuitting = false;
 let lastCopyAt = 0;
+let keyListener;
 let settings = {
   shortcutEnabled: true,
   shortcutModifier: 'META',
@@ -447,11 +449,15 @@ async function translateClipboard() {
 }
 
 function registerShortcut() {
-  globalShortcut.unregisterAll();
-  if (!settings.shortcutEnabled) return;
+  unregisterShortcut();
 
-  const accelerator = `${toAcceleratorModifier(settings.shortcutModifier)}+${settings.shortcutKey}`;
-  const registered = globalShortcut.register(accelerator, () => {
+  keyListener = new GlobalKeyboardListener();
+
+  keyListener.addListener((event, down) => {
+    const modifierDown = isModifierDown(down, settings.shortcutModifier);
+    const keyMatches = event.name === settings.shortcutKey;
+    if (!settings.shortcutEnabled || event.state !== 'DOWN' || !keyMatches || !modifierDown) return;
+
     const now = Date.now();
     if (now - lastCopyAt <= settings.shortcutWindowMs) {
       lastCopyAt = 0;
@@ -464,11 +470,9 @@ function registerShortcut() {
     }
 
     lastCopyAt = now;
+  }).catch((error) => {
+    sendToMainWindow('app-error', `Global shortcut listener failed to start: ${error.message}`);
   });
-
-  if (!registered) {
-    sendToMainWindow('app-error', `Global shortcut failed to register: ${accelerator}`);
-  }
 }
 
 function sendToMainWindow(channel, payload) {
@@ -482,15 +486,18 @@ function sendToWebContents(webContents, channel, payload) {
   return true;
 }
 
-function toAcceleratorModifier(modifier) {
-  if (modifier === 'ALT') return 'Alt';
-  if (modifier === 'SHIFT') return 'Shift';
-  if (modifier === 'CTRL') return 'Control';
-  return 'Command';
+function isModifierDown(down, modifier) {
+  if (modifier === 'ALT') return Boolean(down['LEFT ALT'] || down['RIGHT ALT']);
+  if (modifier === 'SHIFT') return Boolean(down['LEFT SHIFT'] || down['RIGHT SHIFT']);
+  if (modifier === 'META') return Boolean(down['LEFT META'] || down['RIGHT META']);
+  return Boolean(down['LEFT CTRL'] || down['RIGHT CTRL']);
 }
 
 function unregisterShortcut() {
-  globalShortcut.unregisterAll();
+  if (keyListener) {
+    keyListener.kill();
+    keyListener = undefined;
+  }
 }
 
 app.whenReady().then(() => {
