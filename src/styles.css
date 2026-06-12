@@ -509,6 +509,10 @@ kbd {
   line-height: 1.45;
 }
 
+.helpSection {
+  margin-top: 18px;
+}
+
 .helpLinks {
   display: flex;
   flex-wrap: wrap;

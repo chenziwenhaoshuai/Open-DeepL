@@ -67,6 +67,10 @@ const i18n = {
     openOpenRouter: '\u6253\u5f00 OpenRouter',
     openRouterKeys: 'OpenRouter Keys',
     openRouterPricing: 'OpenRouter Pricing',
+    officialUpdateTitle: '\u5b98\u65b9\u66f4\u65b0\u5730\u5740',
+    officialUpdateText: '\u8bf7\u524d\u5f80 OpenDeepL \u5b98\u65b9 GitHub \u9879\u76ee\u548c Releases \u9875\u9762\u4e0b\u8f7d\u66f4\u65b0\uff0c\u907f\u514d\u4f7f\u7528\u6765\u8def\u4e0d\u660e\u7684\u5b89\u88c5\u5305\u3002',
+    officialRepo: 'chenziwenhaoshuai/Open-DeepL',
+    officialReleases: 'OpenDeepL Releases',
     detectSource: '\u68c0\u6d4b\u6e90\u8bed\u8a00',
     swapLanguages: '\u4ea4\u6362\u8bed\u8a00',
     inputPlaceholder: '\u8f93\u5165\u6216\u7c98\u8d34\u6587\u672c\u8fdb\u884c\u7ffb\u8bd1',
@@ -129,6 +133,10 @@ const i18n = {
     openOpenRouter: 'Open OpenRouter',
     openRouterKeys: 'OpenRouter Keys',
     openRouterPricing: 'OpenRouter Pricing',
+    officialUpdateTitle: 'Official updates',
+    officialUpdateText: 'Download updates from the official OpenDeepL GitHub project and Releases page. Avoid installers from unknown sources.',
+    officialRepo: 'chenziwenhaoshuai/Open-DeepL',
+    officialReleases: 'OpenDeepL Releases',
     detectSource: 'Detect language',
     swapLanguages: 'Swap languages',
     inputPlaceholder: 'Type or paste text to translate',
@@ -738,6 +746,23 @@ function HelpDialog({ t, onClose }: { t: (typeof i18n)[AppLanguage]; onClose: ()
               </a>
               <a href="https://openrouter.ai/pricing" target="_blank" rel="noreferrer">
                 {t.openRouterPricing}
+              </a>
+            </div>
+          </section>
+
+          <section className="helpSection">
+            <h3>{t.officialUpdateTitle}</h3>
+            <p>{t.officialUpdateText}</p>
+            <div className="helpLinks">
+              <a href="https://github.com/chenziwenhaoshuai/Open-DeepL" target="_blank" rel="noreferrer">
+                {t.officialRepo}
+              </a>
+              <a
+                href="https://github.com/chenziwenhaoshuai/Open-DeepL/releases"
+                target="_blank"
+                rel="noreferrer"
+              >
+                {t.officialReleases}
               </a>
             </div>
           </section>
