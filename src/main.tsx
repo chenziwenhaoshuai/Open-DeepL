@@ -34,10 +34,12 @@ type SentenceSegment = {
 
 type SettingsDraft = AppSettings;
 type AppLanguage = AppSettings['appLanguage'];
+const ChineseLanguage = '\u4e2d\u6587';
+const EnglishLanguage = 'English (US)';
 
 const languageOptions = [
-  { value: 'English (US)', zh: '\u82f1\u8bed\uff08\u7f8e\u5f0f\uff09', en: 'English (US)' },
-  { value: '\u4e2d\u6587', zh: '\u4e2d\u6587', en: 'Chinese' },
+  { value: EnglishLanguage, zh: '\u82f1\u8bed\uff08\u7f8e\u5f0f\uff09', en: 'English (US)' },
+  { value: ChineseLanguage, zh: '\u4e2d\u6587', en: 'Chinese' },
   { value: '\u65e5\u8bed', zh: '\u65e5\u8bed', en: 'Japanese' },
   { value: '\u97e9\u8bed', zh: '\u97e9\u8bed', en: 'Korean' },
   { value: '\u6cd5\u8bed', zh: '\u6cd5\u8bed', en: 'French' },
@@ -275,9 +277,22 @@ function mapOutputSentenceToSource(
   return sourceSegments.findIndex((segment) => segment.id === sourceSegment.id);
 }
 
+function getDefaultTargetLanguage(text: string, selectedSourceLanguage: string) {
+  if (selectedSourceLanguage === ChineseLanguage) return EnglishLanguage;
+  if (selectedSourceLanguage === EnglishLanguage) return ChineseLanguage;
+  if (selectedSourceLanguage !== 'auto') return null;
+
+  const chineseCount = (text.match(/[\u3400-\u9fff]/g) || []).length;
+  const englishCount = (text.match(/[A-Za-z]/g) || []).length;
+
+  if (chineseCount > 0) return EnglishLanguage;
+  if (englishCount > 0) return ChineseLanguage;
+  return null;
+}
+
 function App() {
   const [sourceLanguage, setSourceLanguage] = useState('auto');
-  const [targetLanguage, setTargetLanguage] = useState('English (US)');
+  const [targetLanguage, setTargetLanguage] = useState(EnglishLanguage);
   const [input, setInput] = useState('');
   const [output, setOutput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -297,6 +312,7 @@ function App() {
   const activeRequestIdRef = useRef('');
   const streamTextRef = useRef('');
   const streamSourceRef = useRef('');
+  const streamTargetRef = useRef(targetLanguage);
   const sourceTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const t = i18n[settings.appLanguage];
@@ -326,17 +342,23 @@ function App() {
       setInput(text);
       setOutput('');
       setHoveredOutputSentence(null);
+      const defaultTargetLanguage = getDefaultTargetLanguage(trimmed, sourceLanguage);
+      const translateTargetLanguage = defaultTargetLanguage || targetLanguage;
+      if (defaultTargetLanguage && defaultTargetLanguage !== targetLanguage) {
+        setTargetLanguage(defaultTargetLanguage);
+      }
       setLoading(true);
       const requestId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
       activeRequestIdRef.current = requestId;
       streamTextRef.current = '';
       streamSourceRef.current = trimmed;
+      streamTargetRef.current = translateTargetLanguage;
       try {
         await window.openDeepL.translateStream({
           requestId,
           text: trimmed,
           sourceLanguage,
-          targetLanguage,
+          targetLanguage: translateTargetLanguage,
         });
       } catch (translationError) {
         if (activeRequestIdRef.current === requestId) {
@@ -375,7 +397,7 @@ function App() {
             source: streamSourceRef.current,
             result,
             sourceLanguage: sourceLabel,
-            targetLanguage,
+            targetLanguage: streamTargetRef.current,
           },
           ...items.slice(0, 9),
         ]);
@@ -386,7 +408,7 @@ function App() {
       offChunk();
       offDone();
     };
-  }, [sourceLabel, targetLanguage]);
+  }, [sourceLabel]);
 
   useEffect(() => {
     window.openDeepL
@@ -475,6 +497,14 @@ function App() {
     setOutput(input);
   }
 
+  function changeSourceLanguage(nextSourceLanguage: string) {
+    setSourceLanguage(nextSourceLanguage);
+    const defaultTargetLanguage = getDefaultTargetLanguage(input, nextSourceLanguage);
+    if (defaultTargetLanguage) {
+      setTargetLanguage(defaultTargetLanguage);
+    }
+  }
+
   return (
     <div className="app">
       <header className="topbar">
@@ -495,7 +525,7 @@ function App() {
       </header>
 
       <section className="languageBar">
-        <select value={sourceLanguage} onChange={(event) => setSourceLanguage(event.target.value)}>
+        <select value={sourceLanguage} onChange={(event) => changeSourceLanguage(event.target.value)}>
           <option value="auto">{t.detectSource}</option>
           {languageOptions.map((language) => (
             <option key={language.value} value={language.value}>
