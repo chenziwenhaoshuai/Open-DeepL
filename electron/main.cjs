@@ -115,6 +115,7 @@ function createWindow() {
     minHeight: 620,
     title: 'OpenDeepL',
     backgroundColor: '#ffffff',
+    icon: createAppIcon(32),
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -144,7 +145,7 @@ function createWindow() {
 function createTray() {
   if (tray) return;
 
-  tray = new Tray(createTrayIcon());
+  tray = new Tray(createAppIcon(16));
   tray.setToolTip('OpenDeepL');
   tray.setContextMenu(
     Menu.buildFromTemplate([
@@ -164,26 +165,67 @@ function createTray() {
   tray.on('click', focusWindow);
 }
 
-function createTrayIcon() {
-  const size = 16;
+function createAppIcon(size) {
   const scale = 4;
   const canvasSize = size * scale;
   const buffer = Buffer.alloc(canvasSize * canvasSize * 4);
+  const logicalScale = canvasSize / 64;
 
-  for (let y = 0; y < canvasSize; y += 1) {
-    for (let x = 0; x < canvasSize; x += 1) {
-      const index = (y * canvasSize + x) * 4;
-      const dx = x - canvasSize / 2;
-      const dy = y - canvasSize / 2;
-      const inside = dx * dx + dy * dy <= (canvasSize / 2 - 2) ** 2;
-      if (inside) {
-        buffer[index] = 0;
-        buffer[index + 1] = 111;
-        buffer[index + 2] = 201;
-        buffer[index + 3] = 255;
+  function setPixel(x, y, r, g, b, a = 255) {
+    if (x < 0 || y < 0 || x >= canvasSize || y >= canvasSize) return;
+    const index = (y * canvasSize + x) * 4;
+    buffer[index] = b;
+    buffer[index + 1] = g;
+    buffer[index + 2] = r;
+    buffer[index + 3] = a;
+  }
+
+  function fillRoundedRect(x, y, width, height, radius, r, g, b) {
+    for (let py = 0; py < canvasSize; py += 1) {
+      for (let px = 0; px < canvasSize; px += 1) {
+        const lx = px / logicalScale;
+        const ly = py / logicalScale;
+        const dx = Math.max(x - lx, 0, lx - (x + width));
+        const dy = Math.max(y - ly, 0, ly - (y + height));
+        const cornerX = lx < x + radius ? x + radius : lx > x + width - radius ? x + width - radius : lx;
+        const cornerY = ly < y + radius ? y + radius : ly > y + height - radius ? y + height - radius : ly;
+        const cornerDistance = Math.hypot(lx - cornerX, ly - cornerY);
+        if ((dx === 0 && dy === 0 && cornerDistance <= radius) || (lx >= x + radius && lx <= x + width - radius && ly >= y && ly <= y + height) || (ly >= y + radius && ly <= y + height - radius && lx >= x && lx <= x + width)) {
+          setPixel(px, py, r, g, b);
+        }
       }
     }
   }
+
+  function drawLine(x1, y1, x2, y2, width, r, g, b) {
+    const startX = Math.floor((Math.min(x1, x2) - width) * logicalScale);
+    const endX = Math.ceil((Math.max(x1, x2) + width) * logicalScale);
+    const startY = Math.floor((Math.min(y1, y2) - width) * logicalScale);
+    const endY = Math.ceil((Math.max(y1, y2) + width) * logicalScale);
+    const lengthSquared = (x2 - x1) ** 2 + (y2 - y1) ** 2;
+
+    for (let py = startY; py <= endY; py += 1) {
+      for (let px = startX; px <= endX; px += 1) {
+        const lx = px / logicalScale;
+        const ly = py / logicalScale;
+        const t = Math.max(0, Math.min(1, ((lx - x1) * (x2 - x1) + (ly - y1) * (y2 - y1)) / lengthSquared));
+        const closestX = x1 + t * (x2 - x1);
+        const closestY = y1 + t * (y2 - y1);
+        if (Math.hypot(lx - closestX, ly - closestY) <= width / 2) {
+          setPixel(px, py, r, g, b);
+        }
+      }
+    }
+  }
+
+  fillRoundedRect(6, 6, 52, 52, 12, 0, 111, 201);
+  drawLine(14, 18, 38, 18, 5, 255, 255, 255);
+  drawLine(26, 12, 26, 20, 5, 255, 255, 255);
+  drawLine(19, 22, 36, 36, 4.5, 255, 255, 255);
+  drawLine(36, 22, 18, 36, 4.5, 255, 255, 255);
+  drawLine(36, 49, 44, 29, 5, 255, 255, 255);
+  drawLine(44, 29, 52, 49, 5, 255, 255, 255);
+  drawLine(39, 42, 49, 42, 4.5, 255, 255, 255);
 
   const image = nativeImage.createFromBitmap(buffer, { width: canvasSize, height: canvasSize });
   return image.resize({ width: size, height: size });
