@@ -1,4 +1,13 @@
 const { app, BrowserWindow, Menu, Tray, clipboard, dialog, ipcMain, nativeImage } = require('electron');
+const util = require('util');
+
+if (!util.isObject) {
+  util.isObject = (value) => value !== null && (typeof value === 'object' || typeof value === 'function');
+}
+if (!util.isFunction) {
+  util.isFunction = (value) => typeof value === 'function';
+}
+
 const { GlobalKeyboardListener } = require('node-global-key-listener');
 const path = require('path');
 const fs = require('fs');
