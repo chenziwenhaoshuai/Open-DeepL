@@ -460,7 +460,7 @@ async function translateClipboard() {
 function registerShortcut() {
   unregisterShortcut();
 
-  keyListener = new GlobalKeyboardListener();
+  keyListener = new GlobalKeyboardListener(getKeyboardListenerConfig());
 
   keyListener.addListener((event, down) => {
     const modifierDown = isModifierDown(down, settings.shortcutModifier);
@@ -482,6 +482,17 @@ function registerShortcut() {
   }).catch((error) => {
     sendToMainWindow('app-error', `Global shortcut listener failed to start: ${error.message}`);
   });
+}
+
+function getKeyboardListenerConfig() {
+  if (process.platform !== 'darwin') return {};
+
+  const serverPath = require.resolve('node-global-key-listener/bin/MacKeyServer');
+  return {
+    mac: {
+      serverPath: app.isPackaged ? serverPath.replace(`${path.sep}app.asar${path.sep}`, `${path.sep}app.asar.unpacked${path.sep}`) : serverPath,
+    },
+  };
 }
 
 function sendToMainWindow(channel, payload) {

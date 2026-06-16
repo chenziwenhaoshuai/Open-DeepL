@@ -39,6 +39,9 @@
       "electron/**/*",
       "package.json"
     ],
+    "asarUnpack": [
+      "node_modules/node-global-key-listener/bin/MacKeyServer"
+    ],
     "mac": {
       "category": "public.app-category.productivity",
       "identity": "-",
