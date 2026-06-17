@@ -116,6 +116,7 @@ function createWindow() {
     title: 'OpenDeepL',
     backgroundColor: '#ffffff',
     icon: createAppIcon(32),
+    autoHideMenuBar: true,
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -124,6 +125,7 @@ function createWindow() {
     },
   });
 
+  window.setMenuBarVisibility(false);
   mainWindow = window;
   window.once('ready-to-show', () => {
     if (!window.isDestroyed()) window.show();
