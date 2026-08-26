@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, Tray, clipboard, dialog, ipcMain, nativeImage } = require('electron');
+const { app, BrowserWindow, Menu, Tray, clipboard, dialog, ipcMain, nativeImage, net, session } = require('electron');
 const { GlobalKeyboardListener } = require('node-global-key-listener');
 const path = require('path');
 const fs = require('fs');
@@ -7,6 +7,8 @@ const isDev = !app.isPackaged;
 const openRouterUrl = 'https://openrouter.ai/api/v1/chat/completions';
 const openRouterModelsUrl = 'https://openrouter.ai/api/v1/models';
 const defaultModel = 'deepseek/deepseek-v4-flash';
+const openRouterTimeoutMs = 45000;
+const openRouterRequestAttempts = 2;
 let mainWindow;
 let tray;
 let isQuitting = false;
@@ -287,7 +289,7 @@ async function translateText({ text, sourceLanguage = 'auto', targetLanguage = '
     return '';
   }
 
-  const response = await fetch(openRouterUrl, {
+  const response = await fetchOpenRouter(openRouterUrl, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -305,10 +307,7 @@ async function translateText({ text, sourceLanguage = 'auto', targetLanguage = '
     }),
   });
 
-  if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(`OpenRouter request failed: ${response.status} ${detail.slice(0, 240)}`);
-  }
+  ensureOpenRouterResponse(response);
 
   const data = await response.json();
   const content = data?.choices?.[0]?.message?.content;
@@ -369,16 +368,85 @@ function buildTranslationSystemPrompt(sourceLanguage, targetLanguage) {
   ].join('\n');
 }
 
+async function fetchOpenRouter(url, init) {
+  let lastError;
+
+  for (let attempt = 1; attempt <= openRouterRequestAttempts; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), openRouterTimeoutMs);
+
+    try {
+      const response = await net.fetch(url, { ...init, signal: controller.signal });
+      if (!shouldRetryOpenRouterResponse(response) || attempt === openRouterRequestAttempts) {
+        return response;
+      }
+
+      if (response.body) {
+        await response.body.cancel().catch(() => {});
+      }
+      await waitForRetry(attempt);
+    } catch (error) {
+      lastError = error;
+      if (attempt === openRouterRequestAttempts) {
+        throw createOpenRouterNetworkError(error);
+      }
+      await waitForRetry(attempt);
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  throw createOpenRouterNetworkError(lastError);
+}
+
+function shouldRetryOpenRouterResponse(response) {
+  return response.status === 408 || response.status === 429 || response.status >= 500;
+}
+
+function waitForRetry(attempt) {
+  return new Promise((resolve) => setTimeout(resolve, attempt * 700));
+}
+
+function ensureOpenRouterResponse(response) {
+  if (response.ok) return;
+
+  const zh = settings.appLanguage === 'zh';
+  if (response.status === 401 || response.status === 403) {
+    throw new Error(zh ? 'OpenRouter API Key 无效或没有权限，请在设置中检查 API Key。' : 'Your OpenRouter API key is invalid or does not have permission. Check it in Settings.');
+  }
+  if (response.status === 429) {
+    throw new Error(zh ? 'OpenRouter 请求过于频繁或当前模型额度已用完，请稍后重试或切换模型。' : 'OpenRouter rate limit or model quota reached. Try again later or switch models.');
+  }
+  if (response.status >= 500) {
+    throw new Error(zh ? 'OpenRouter 服务暂时不可用，请稍后重试。' : 'OpenRouter is temporarily unavailable. Please try again later.');
+  }
+
+  throw new Error(
+    zh
+      ? `OpenRouter 请求失败（HTTP ${response.status}），请检查模型名称和网络连接。`
+      : `OpenRouter request failed (HTTP ${response.status}). Check the model name and network connection.`,
+  );
+}
+
+function createOpenRouterNetworkError(error) {
+  const zh = settings.appLanguage === 'zh';
+  if (error?.name === 'AbortError') {
+    return new Error(zh ? '连接 OpenRouter 超时，请检查网络或代理设置后重试。' : 'The OpenRouter connection timed out. Check your network or proxy settings and try again.');
+  }
+
+  return new Error(
+    zh
+      ? '无法连接 OpenRouter。请检查网络、代理或 DNS 设置后重试。'
+      : 'Unable to connect to OpenRouter. Check your network, proxy, or DNS settings and try again.',
+  );
+}
+
 async function translateTextStream(event, payload) {
   const requestId = String(payload?.requestId || Date.now());
   const { url, init } = buildTranslateRequest({ ...payload, stream: true });
   const sender = event.sender;
-  const response = await fetch(url, init);
-
-  if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(`OpenRouter request failed: ${response.status} ${detail.slice(0, 240)}`);
-  }
+  const response = await fetchOpenRouter(url, init);
+  ensureOpenRouterResponse(response);
 
   if (!response.body) {
     throw new Error('OpenRouter did not return a readable stream.');
@@ -436,11 +504,8 @@ async function fetchOpenRouterModels() {
     headers.Authorization = `Bearer ${apiKey}`;
   }
 
-  const response = await fetch(openRouterModelsUrl, { headers });
-  if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(`OpenRouter models request failed: ${response.status} ${detail.slice(0, 240)}`);
-  }
+  const response = await fetchOpenRouter(openRouterModelsUrl, { headers });
+  ensureOpenRouterResponse(response);
 
   const data = await response.json();
   return (data?.data || []).map((model) => {
@@ -539,10 +604,11 @@ function unregisterShortcut() {
   }
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   loadEnv();
   loadSettings();
   applyAutoLaunch();
+  await configureNetworkProxy();
   createWindow();
   createTray();
   registerShortcut();
@@ -551,6 +617,14 @@ app.whenReady().then(() => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
+
+async function configureNetworkProxy() {
+  try {
+    await session.defaultSession.setProxy({ mode: 'system' });
+  } catch (error) {
+    console.warn('Failed to apply system proxy settings:', error.message);
+  }
+}
 
 app.on('will-quit', () => {
   isQuitting = true;
